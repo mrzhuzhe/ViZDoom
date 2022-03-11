@@ -1,4 +1,4 @@
-from mytest.setup_env import MyDoom
+from setup_env import MyDoom
 from time import sleep
 
 _env = MyDoom(render=True)
