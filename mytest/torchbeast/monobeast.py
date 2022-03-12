@@ -374,10 +374,10 @@ def train(flags):  # pylint: disable=too-many-branches, too-many-statements
             timings.time("learn")
             with lock:
                 to_log = dict(step=step)
-                to_log.update({k: stats[k] for k in stat_keys})
+                _out = {k: stats[k] for k in stat_keys}
+                to_log.update(_out)
                 plogger.log(to_log)
                 step += T * B
-
         if i == 0:
             logging.info("Batch and learn: %s", timings.summary())
 

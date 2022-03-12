@@ -5,7 +5,7 @@ class conf:
         #self.env =  "PongNoFrameskip-v4"
         #self.env =  "BoxingNoFrameskip-v0"
 
-        self.savedir = "./logs/torch-beast-results/"
+        self.savedir = "./logs/torch-beast-results/battle"
         #self.xpid =  "torchbeast-train_test"
         self.xpid = None
         self.use_lstm = False
@@ -24,12 +24,12 @@ class conf:
         #elf.num_learner_threads = 4
         
         # interval between study ?
-        self.unroll_length = 20
+        self.unroll_length = 32
         self.disable_cuda = None
 
         #self.entropy_cost = 0.0006
-        self.entropy_cost = 0.1
-        self.baseline_cost = 0.0001
+        self.entropy_cost = 0.01
+        self.baseline_cost = 0.5
         self.discounting = 0.99
         self.reward_clipping = "abs_one"
 
