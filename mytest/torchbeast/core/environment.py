@@ -14,27 +14,29 @@
 """The environment class for MonoBeast."""
 
 import torch
+from zmq import device
 
 
-def _format_frame(frame):
-    frame = torch.from_numpy(frame)
+def _format_frame(frame, device):
+    frame = torch.from_numpy(frame).to(device)
     return frame.view((1, 1) + frame.shape)  # (...) -> (T,B,...).
 
 
 class Environment:
-    def __init__(self, gym_env):
+    def __init__(self, gym_env, device):
         self.gym_env = gym_env
         self.episode_return = None
         self.episode_step = None
+        self.device = device
 
     def initial(self):
-        initial_reward = torch.zeros(1, 1)
+        initial_reward = torch.zeros(1, 1,  device=self.device)
         # This supports only single-tensor actions ATM.
-        initial_last_action = torch.zeros(1, 1, dtype=torch.int64)
-        self.episode_return = torch.zeros(1, 1)
-        self.episode_step = torch.zeros(1, 1, dtype=torch.int32)
-        initial_done = torch.ones(1, 1, dtype=torch.uint8)
-        initial_frame = _format_frame(self.gym_env.reset())
+        initial_last_action = torch.zeros(1, 1, dtype=torch.int64, device=self.device)
+        self.episode_return = torch.zeros(1, 1, device=self.device)
+        self.episode_step = torch.zeros(1, 1, dtype=torch.int32, device=self.device)
+        initial_done = torch.ones(1, 1, dtype=torch.uint8, device=self.device)
+        initial_frame = _format_frame(self.gym_env.reset(), self.device)
         return dict(
             frame=initial_frame,
             reward=initial_reward,
@@ -52,12 +54,12 @@ class Environment:
         episode_return = self.episode_return
         if done:
             frame = self.gym_env.reset()
-            self.episode_return = torch.zeros(1, 1)
-            self.episode_step = torch.zeros(1, 1, dtype=torch.int32)
+            self.episode_return = torch.zeros(1, 1, device=self.device)
+            self.episode_step = torch.zeros(1, 1, dtype=torch.int32, device=self.device)
 
-        frame = _format_frame(frame)
-        reward = torch.tensor(reward).view(1, 1)
-        done = torch.tensor(done).view(1, 1)
+        frame = _format_frame(frame, device=self.device)
+        reward = torch.tensor(reward, device=self.device).view(1, 1)
+        done = torch.tensor(done, device=self.device).view(1, 1)
 
         return dict(
             frame=frame,
