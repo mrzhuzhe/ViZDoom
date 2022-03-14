@@ -13,15 +13,19 @@ class conf:
 
         self.disable_checkpoint = None
 
-        self.num_actors = 2
+        # for produce buffer 
+        self.num_actors = 8
         #self.num_actors = 2
-        self.batch_size = 16
+        # may not relate to speed
+        self.batch_size = 64
         #self.batch_size = 4
 
         self.num_buffers = max(2 * self.num_actors, self.batch_size)
-        #self.num_buffers = 60
+        # may not relate to speed too 
+        #self.num_buffers = 16
+        #self.num_learner_threads = 2
+        # seems in gpu not bottneck
         self.num_learner_threads = 2
-        #elf.num_learner_threads = 4
         
         # interval between study ?
         self.unroll_length = 32
@@ -34,7 +38,7 @@ class conf:
         self.reward_clipping = "abs_one"
 
         #self.learning_rate = 0.00048
-        self.learning_rate = 0.0004
+        self.learning_rate = 1e-4
         self.alpha = 0.99
         self.momentum = 0
         self.epsilon = 0.01
