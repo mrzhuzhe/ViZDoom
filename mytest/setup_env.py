@@ -14,8 +14,11 @@ from gym.spaces import Discrete, Box
 WIDTH = 160
 HEIGHT = 100
 TICRATE = 350
+_ACTION_ = 8
 class MyDoom(Env):
-    def __init__(self, render=False, config='../scenarios/deadly_corridor_s1.cfg'):
+    #def __init__(self, render=False, config='../scenarios/deadly_corridor_s1.cfg'):
+    def __init__(self, render=False, config='../scenarios/battle.cfg'):
+    #def __init__(self, render=False, config='../scenarios/basic.cfg'):
         self.game = vzd.DoomGame()
         self.game.load_config(config)
 
@@ -30,15 +33,18 @@ class MyDoom(Env):
         self.game.init()
 
         self.observation_space = Box(low=0, high=255, shape=(HEIGHT, WIDTH, 1), dtype=np.uint8) 
-        self.action_space = Discrete(7)
+        self.action_space = Discrete(_ACTION_)
 
         # Game variables: HEALTH DAMAGE_TAKEN HITCOUNT SELECTED_WEAPON_AMMO
+        """
         self.damage_taken = 0
         self.hitcount = 0
         self.ammo = 52 ## CHANGED
+        """
+
         
     def step(self, action):
-        actions = np.identity(7, dtype=np.uint8)
+        actions = np.identity(_ACTION_, dtype=np.uint8)
         movement_reward = self.game.make_action(actions[action], 4)
         done =  self.game.is_episode_finished()
         reward = 0
@@ -48,10 +54,11 @@ class MyDoom(Env):
             state = self.resize(state)
             #info = { "ammo": _stat.game_variables[0], "health": _stat.game_variables[1] }
             #info = { "health": _stat.game_variables[0] }
-
-            # Reward shaping
-            health, damage_taken, hitcount, ammo  = _stat.game_variables
             
+            # Reward shaping
+            #health, damage_taken, hitcount, ammo  = _stat.game_variables
+            POSITION_X, POSITION_Y, ANGLE, SELECTED_WEAPON, SELECTED_WEAPON_AMMO, HEALTH, USER2 =  _stat.game_variables
+            """
             # Calculate reward deltas
             damage_taken_delta = -damage_taken + self.damage_taken
             self.damage_taken = damage_taken
@@ -64,10 +71,11 @@ class MyDoom(Env):
             # https://github.com/mrzhuzhe/ViZDoom/blob/master/doc/Types.md#gamevariable
             #reward = movement_reward + damage_taken_delta*10 + hitcount_delta*400  + ammo_delta*5
             reward = movement_reward + hitcount_delta*200 
-            info = { "health": health }
+            """
+            reward = movement_reward 
+            info = { "health": HEALTH }
         else:
             state = np.zeros(self.observation_space.shape)
-            #info = { "ammo": 0, "health": 0 }
             info = { "health": 0 }
         return state, reward, done, info
     def resize(self, observation):

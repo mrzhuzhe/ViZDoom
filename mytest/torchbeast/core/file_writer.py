@@ -21,8 +21,9 @@ import logging
 import os
 import time
 from typing import Dict
-
-
+import re
+from torch.utils.tensorboard import SummaryWriter
+writer = SummaryWriter()
 
 def gather_metadata() -> Dict:
     date_start = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
@@ -190,11 +191,22 @@ class FileWriter:
 
         if to_log["_tick"] == 0:
             self._logfile.write("# %s\n" % ",".join(self.fieldnames))
+        
+        # useing tensor board
+        _logarr = []
+        for k in sorted(to_log):
+            _logarr.append("{}: {}".format(k, to_log[k]))
+            if re.search('return', k):
+                writer.add_scalar(f'return/{k}',  to_log[k], to_log['step'])
+            elif re.search('loss', k):
+                writer.add_scalar(f'loss/{k}',  to_log[k], to_log['step'])
+            else:
+                writer.add_scalar(k,  to_log[k], to_log['step'])
 
         if verbose:
             self._logger.info(
                 "LOG | %s",
-                ", ".join(["{}: {}".format(k, to_log[k]) for k in sorted(to_log)]),
+                ", ".join(_logarr),
             )
 
         self._logwriter.writerow(to_log)

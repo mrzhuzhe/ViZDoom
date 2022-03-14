@@ -11,7 +11,7 @@ from PPO.common.vec_env import DummyVecEnv, VecFrameStack
 #model = PPO.load('./train/train_deadly_corridor_seed2/best_model_400000')
 #model = PPO.load('./train/train_deadly_corridor_killingmachine/best_model_400000.zip')
 #model = PPO.load('./train/train_deadly_corridor_origin/best_model_400000.zip')
-model = PPO.load('./train/train_deadly_corridor_frameStack/best_model_400000.zip')
+model = PPO.load('./train/train_battle_frame/best_model_1000000.zip')
 
 
 #env = MyDoom(render=False)
@@ -34,5 +34,5 @@ for episode in range(100):
         # time.sleep(0.20)
         total_reward += reward
         sleep(0.1)
-    print('Total Reward for episode {} is {}'.format(total_reward, episode))
+    print('Total Reward for episode {} is {}'.format(episode, total_reward))
     sleep(2)
