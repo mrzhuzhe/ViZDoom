@@ -77,6 +77,10 @@ def getModelInp(inp, device):
     res['last_action'] = inp['last_action'].to(device)
     return res
 
+def getAgentStateInp(inp, device):
+    return tuple(tensor.to(device) for tensor in inp)
+        
+
 
 def act(
     flags,
@@ -100,7 +104,7 @@ def act(
         
         # model inp to cuda
         model_inp = getModelInp(env_output, flags.device)
-        agent_output, unused_state = model(model_inp, agent_state)
+        agent_output, unused_state = model(model_inp, getAgentStateInp(agent_state, flags.device))
         while True:
             #env.gym_env.render()
             index = free_queue.get()
@@ -123,7 +127,7 @@ def act(
                 model_inp = getModelInp(env_output, flags.device)
                 
                 with torch.no_grad():
-                    agent_output, agent_state = model(model_inp, agent_state)
+                    agent_output, agent_state = model(model_inp, getAgentStateInp(agent_state, flags.device))
 
                 timings.time("model")
 
