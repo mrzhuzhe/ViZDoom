@@ -23,7 +23,7 @@ import time
 from typing import Dict
 import re
 from torch.utils.tensorboard import SummaryWriter
-writer = SummaryWriter()
+
 
 def gather_metadata() -> Dict:
     date_start = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
@@ -147,6 +147,10 @@ class FileWriter:
 
         self._logger.info("Saving logs data to %s", self.paths["logs"])
         self._logger.info("Saving logs' fields to %s", self.paths["fields"])
+
+        self.tb_writer = SummaryWriter()
+        
+        """
         self.fieldnames = ["_tick", "_time"]
         if os.path.exists(self.paths["logs"]):
             self._logger.warning(
@@ -167,11 +171,13 @@ class FileWriter:
                 # of data.
                 if len(lines) > 1:
                     self._tick = int(lines[-1][0]) + 1
+        """
 
-        self._fieldfile = open(self.paths["fields"], "a")
-        self._fieldwriter = csv.writer(self._fieldfile)
-        self._logfile = open(self.paths["logs"], "a")
-        self._logwriter = csv.DictWriter(self._logfile, fieldnames=self.fieldnames)
+
+        #self._fieldfile = open(self.paths["fields"], "a")
+        #self._fieldwriter = csv.writer(self._fieldfile)
+        #self._logfile = open(self.paths["logs"], "a")
+        #self._logwriter = csv.DictWriter(self._logfile, fieldnames=self.fieldnames)
 
     def log(self, to_log: Dict, tick: int = None, verbose: bool = False) -> None:
         if tick is not None:
@@ -181,27 +187,27 @@ class FileWriter:
             self._tick += 1
         to_log["_time"] = time.time()
 
-        old_len = len(self.fieldnames)
-        for k in to_log:
-            if k not in self.fieldnames:
-                self.fieldnames.append(k)
-        if old_len != len(self.fieldnames):
-            self._fieldwriter.writerow(self.fieldnames)
-            self._logger.info("Updated log fields: %s", self.fieldnames)
+        #old_len = len(self.fieldnames)
+        #for k in to_log:
+        #    if k not in self.fieldnames:
+        #        self.fieldnames.append(k)
+        #if old_len != len(self.fieldnames):
+        #    self._fieldwriter.writerow(self.fieldnames)
+        #    self._logger.info("Updated log fields: %s", self.fieldnames)
 
-        if to_log["_tick"] == 0:
-            self._logfile.write("# %s\n" % ",".join(self.fieldnames))
+        #if to_log["_tick"] == 0:
+            #self._logfile.write("# %s\n" % ",".join(self.fieldnames))
         
         # useing tensor board
         _logarr = []
         for k in sorted(to_log):
             _logarr.append("{}: {}".format(k, to_log[k]))
             if re.search('return', k):
-                writer.add_scalar(f'return/{k}',  to_log[k], to_log['step'])
+                self.tb_writer.add_scalar(f'return/{k}',  to_log[k], to_log['step'])
             elif re.search('loss', k):
-                writer.add_scalar(f'loss/{k}',  to_log[k], to_log['step'])
+                self.tb_writer.add_scalar(f'loss/{k}',  to_log[k], to_log['step'])
             else:
-                writer.add_scalar(k,  to_log[k], to_log['step'])
+                self.tb_writer.add_scalar(k,  to_log[k], to_log['step'])
 
         if verbose:
             self._logger.info(
@@ -209,8 +215,8 @@ class FileWriter:
                 ", ".join(_logarr),
             )
 
-        self._logwriter.writerow(to_log)
-        self._logfile.flush()
+        #self._logwriter.writerow(to_log)
+        #self._logfile.flush()
 
     def close(self, successful: bool = True) -> None:
         self.metadata["date_end"] = datetime.datetime.now().strftime(

@@ -556,6 +556,6 @@ Net = AtariNet
 
 
 def create_env(flags):
-    _env = MyDoom(render=False)
+    _env = MyDoom(render=flags.render)
     _env = wrap_pytorch(_env)
     return _env

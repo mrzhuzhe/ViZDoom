@@ -11,7 +11,7 @@ class conf:
         self.xpid = None
         self.use_lstm = False
         self.mode = "train"
-
+        self.render = False
         self.disable_checkpoint = None
 
         # for produce buffer 
@@ -44,8 +44,8 @@ class conf:
         self.momentum = 0
         self.epsilon = 0.01
         self.grad_norm_clipping = 40.0
-        #self.total_steps = 1e7
-        self.total_steps = 1e6
+        self.total_steps = 3e7
+        #self.total_steps = 1e6
         #self.device = "cuda:0"
     """
      --num_actors 45 \
