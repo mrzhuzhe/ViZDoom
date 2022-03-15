@@ -8,7 +8,7 @@ class conf:
         self.savedir = "./logs/torch-beast-results/battle"
         #self.xpid =  "torchbeast-train_test"
         self.xpid = None
-        self.use_lstm = False
+        self.use_lstm = True
         self.mode = "train"
 
         self.disable_checkpoint = None
