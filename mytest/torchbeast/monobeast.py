@@ -291,7 +291,7 @@ def train(flags):  # pylint: disable=too-many-branches, too-many-statements
 
     env = create_env(flags)
 
-    model = Net(env.observation_space.shape, env.action_space.n, flags.use_lstm)
+    model = Net(env.observation_space.shape, env.action_space.n, flags.use_lstm).to(flags.device)
     buffers = create_buffers(flags, env.observation_space.shape, model.num_actions)
 
     model.share_memory()
@@ -536,6 +536,9 @@ class AtariNet(nn.Module):
 
     def forward(self, inputs, core_state=()):
         x = inputs["frame"]  # [T, B, C, H, W].
+        
+        x = x.cuda()
+
         T, B, *_ = x.shape
         x = torch.flatten(x, 0, 1)  # Merge time and batch.
         x = x.float() / 255.0
@@ -550,6 +553,10 @@ class AtariNet(nn.Module):
         ).float()
         #clipped_reward = torch.clamp(inputs["reward"], -1, 1).view(T * B, 1)
         clipped_reward = torch.clamp(inputs["reward"].float(), -1, 1).view(T * B, 1)
+
+        one_hot_last_action = one_hot_last_action.cuda()
+        clipped_reward = clipped_reward.cuda()
+
         core_input = torch.cat([x, clipped_reward, one_hot_last_action], dim=-1)
 
         if self.use_lstm:
