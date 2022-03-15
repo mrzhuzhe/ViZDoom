@@ -46,6 +46,7 @@ class Environment:
 
     def step(self, action):
         frame, reward, done, unused_info = self.gym_env.step(action.item())
+        #print(reward, done)
         self.episode_step += 1
         self.episode_return += reward
         episode_step = self.episode_step

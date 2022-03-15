@@ -14,10 +14,10 @@ class conf:
         self.disable_checkpoint = None
 
         # for produce buffer 
-        self.num_actors = 8
+        self.num_actors = 2
         #self.num_actors = 2
         # may not relate to speed
-        self.batch_size = 64
+        self.batch_size = 16
         #self.batch_size = 4
 
         self.num_buffers = max(2 * self.num_actors, self.batch_size)
@@ -25,7 +25,7 @@ class conf:
         #self.num_buffers = 16
         #self.num_learner_threads = 2
         # seems in gpu not bottneck
-        self.num_learner_threads = 2
+        self.num_learner_threads = 1
         
         # interval between study ?
         self.unroll_length = 32

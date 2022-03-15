@@ -305,7 +305,7 @@ def train(flags):  # pylint: disable=too-many-branches, too-many-statements
         initial_agent_state_buffers.append(state)
 
     actor_processes = []
-    ctx = mp.get_context("fork")
+    ctx = mp.get_context("spawn")
     free_queue = ctx.SimpleQueue()
     full_queue = ctx.SimpleQueue()
 
