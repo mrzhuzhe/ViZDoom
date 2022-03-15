@@ -12,6 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
+
+# https://pytorch.org/docs/stable/multiprocessing.html
+
 import argparse
 import logging
 import os
@@ -71,10 +75,8 @@ def compute_policy_gradient_loss(logits, actions, advantages):
 _modelKey = ['frame', 'reward', 'done', 'last_action']
 def getModelInp(inp, device):
     res = {}
-    res['frame'] = inp['frame'].to(device)
-    res['reward'] = inp['reward'].to(device)
-    res['done'] = inp['done'].to(device)
-    res['last_action'] = inp['last_action'].to(device)
+    for key in _modelKey:
+        res[key] = inp[key].to(device)
     return res
 
 def getAgentStateInp(inp, device):
