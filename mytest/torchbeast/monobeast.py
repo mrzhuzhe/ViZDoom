@@ -113,22 +113,7 @@ def act(
                 timings.time("model")
 
                 #print("env_output", env_output)
-                env_output = env.step(agent_output["action"])
-
-                if env_output["done"].any():
-                    # Cache reward, done, and info["actions_taken"] from the terminal step
-                    cached_reward = env_output["reward"]
-                    cached_done = env_output["done"]
-                    #cached_info_actions_taken = env_output["info"]["actions_taken"]
-                    #cached_info_logging = {
-                    #    key: val for key, val in env_output["info"].items() if key.startswith("LOGGING_")
-                    #}
-
-                    env_output = env.reset()
-                    env_output["reward"] = cached_reward
-                    env_output["done"] = cached_done
-                    #env_output["info"]["actions_taken"] = cached_info_actions_taken
-                    #env_output["info"].update(cached_info_logging)
+                env_output = env.step(agent_output["action"])            
 
                 timings.time("step")
 
@@ -311,7 +296,10 @@ def train(flags):  # pylint: disable=too-many-branches, too-many-statements
     model = Net(env.observation_space.shape, env.action_space.n, flags.use_lstm).to(flags.device)
     buffers = create_buffers(flags, env.observation_space.shape, model.num_actions)
     
-    model.eval()
+    n_trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    logging.info(f'Training model with {n_trainable_params:,d} parameters.')
+
+    #model.eval()
     model.share_memory()
 
     # Add initial RNN state.
@@ -347,7 +335,7 @@ def train(flags):  # pylint: disable=too-many-branches, too-many-statements
     learner_model = Net(
         env.observation_space.shape, env.action_space.n, flags.use_lstm
     ).to(device=flags.device)
-    learner_model.train()
+    #learner_model.train()
     learner_model.share_memory()
 
     optimizer = torch.optim.RMSprop(
