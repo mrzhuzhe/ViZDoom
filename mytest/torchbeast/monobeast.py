@@ -99,6 +99,7 @@ def act(
                 buffers[key][index][0, ...] = env_output[key]
             for key in agent_output:
                 buffers[key][index][0, ...] = agent_output[key]
+            
             for i, tensor in enumerate(agent_state):
                 initial_agent_state_buffers[index][i][...] = tensor
 
@@ -114,6 +115,21 @@ def act(
                 #print("env_output", env_output)
                 env_output = env.step(agent_output["action"])
 
+                if env_output["done"].any():
+                    # Cache reward, done, and info["actions_taken"] from the terminal step
+                    cached_reward = env_output["reward"]
+                    cached_done = env_output["done"]
+                    #cached_info_actions_taken = env_output["info"]["actions_taken"]
+                    #cached_info_logging = {
+                    #    key: val for key, val in env_output["info"].items() if key.startswith("LOGGING_")
+                    #}
+
+                    env_output = env.reset()
+                    env_output["reward"] = cached_reward
+                    env_output["done"] = cached_done
+                    #env_output["info"]["actions_taken"] = cached_info_actions_taken
+                    #env_output["info"].update(cached_info_logging)
+
                 timings.time("step")
 
                 for key in env_output:
@@ -123,7 +139,6 @@ def act(
 
                 timings.time("write")
             full_queue.put(index)
-
         if actor_index == 0:
             logging.info("Actor %i: %s", actor_index, timings.summary())
 
@@ -180,6 +195,7 @@ def learn(
 ):
     """Performs a learning (optimization) step."""
     with lock:
+
         learner_outputs, unused_state = model(batch, initial_agent_state)
 
         # Take final value function slice for bootstrapping.
@@ -257,11 +273,12 @@ def create_buffers(flags, obs_shape, num_actions) -> Buffers:
     buffers: Buffers = {key: [] for key in specs}
     for _ in range(flags.num_buffers):
         for key in buffers:
-            buffers[key].append(torch.empty(**specs[key]).to(flags.device).share_memory_())
+            buffers[key].append(torch.empty(**specs[key]).share_memory_())
     return buffers
 
 
 def train(flags):  # pylint: disable=too-many-branches, too-many-statements
+    #os.environ["OMP_NUM_THREADS"] = "1"
     if flags.xpid is None:
         flags.xpid = "torchbeast-%s" % time.strftime("%Y%m%d-%H%M%S")
     plogger = file_writer.FileWriter(
@@ -554,8 +571,3 @@ def create_env(flags):
     _env = MyDoom(render=False)
     _env = wrap_pytorch(_env)
     return _env
-
-
-def main(flags):
-    if flags.mode == "train":
-        train(flags)

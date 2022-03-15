@@ -18,18 +18,18 @@ class conf:
         self.num_actors = 2
         #self.num_actors = 2
         # may not relate to speed
-        self.batch_size = 8
+        self.batch_size = 16
         #self.batch_size = 4
 
-        #self.num_buffers = max(2 * self.num_actors, self.batch_size)
+        self.num_buffers = max(2 * self.num_actors, self.batch_size)
         # may not relate to speed too 
-        self.num_buffers = 64
+        #self.num_buffers = 64
         #self.num_learner_threads = 2
         # seems in gpu not bottneck
         self.num_learner_threads = 1
         
         # interval between study ?
-        self.unroll_length = 128
+        self.unroll_length = 32
         self.disable_cuda = None
 
         #self.entropy_cost = 0.0006

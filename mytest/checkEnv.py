@@ -8,6 +8,6 @@ total_steps = 100
 state = _env.reset()
 for step in range(total_steps):    
     state, reward, done, info = _env.step(_env.action_space.sample())
-    print(info)
+    print(info, reward)
     sleep(0.2)
 _env.close()
