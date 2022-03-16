@@ -84,7 +84,7 @@ def act(
         gym_env = create_env(flags)
         seed = actor_index ^ int.from_bytes(os.urandom(4), byteorder="little")
         gym_env.seed(seed)
-        env = environment.Environment(gym_env)        
+        env = environment.Environment(gym_env, device=flags.actor_device)        
         env_output = env.initial()
         agent_state = model.initial_state(batch_size=1)
         agent_output, unused_state = model(env_output, agent_state)
@@ -99,6 +99,7 @@ def act(
                 buffers[key][index][0, ...] = env_output[key]
             for key in agent_output:
                 buffers[key][index][0, ...] = agent_output[key]
+            
             for i, tensor in enumerate(agent_state):
                 initial_agent_state_buffers[index][i][...] = tensor
 
@@ -112,7 +113,7 @@ def act(
                 timings.time("model")
 
                 #print("env_output", env_output)
-                env_output = env.step(agent_output["action"])
+                env_output = env.step(agent_output["action"])            
 
                 timings.time("step")
 
@@ -123,7 +124,6 @@ def act(
 
                 timings.time("write")
             full_queue.put(index)
-
         if actor_index == 0:
             logging.info("Actor %i: %s", actor_index, timings.summary())
 
@@ -180,6 +180,7 @@ def learn(
 ):
     """Performs a learning (optimization) step."""
     with lock:
+
         learner_outputs, unused_state = model(batch, initial_agent_state)
 
         # Take final value function slice for bootstrapping.
@@ -220,7 +221,7 @@ def learn(
         )
 
         total_loss = pg_loss + baseline_loss + entropy_loss
-
+        #print(batch["episode_return"], [batch["done"]])
         episode_returns = batch["episode_return"][batch["done"]]
         stats = {
             "episode_returns": tuple(episode_returns.cpu().numpy()),
@@ -262,6 +263,7 @@ def create_buffers(flags, obs_shape, num_actions) -> Buffers:
 
 
 def train(flags):  # pylint: disable=too-many-branches, too-many-statements
+    #os.environ["OMP_NUM_THREADS"] = "1"
     if flags.xpid is None:
         flags.xpid = "torchbeast-%s" % time.strftime("%Y%m%d-%H%M%S")
     plogger = file_writer.FileWriter(
@@ -289,11 +291,18 @@ def train(flags):  # pylint: disable=too-many-branches, too-many-statements
         logging.info("Not using CUDA.")
         flags.device = torch.device("cpu")
 
+
+    flags.actor_device = torch.device(flags.actor_device_str) 
+
     env = create_env(flags)
 
-    model = Net(env.observation_space.shape, env.action_space.n, flags.use_lstm)
+    model = Net(env.observation_space.shape, env.action_space.n, flags.use_lstm).to(flags.actor_device)
     buffers = create_buffers(flags, env.observation_space.shape, model.num_actions)
+    
+    n_trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    logging.info(f'Training model with {n_trainable_params:,d} parameters.')
 
+    #model.eval()
     model.share_memory()
 
     # Add initial RNN state.
@@ -305,7 +314,8 @@ def train(flags):  # pylint: disable=too-many-branches, too-many-statements
         initial_agent_state_buffers.append(state)
 
     actor_processes = []
-    ctx = mp.get_context("fork")
+    #ctx = mp.get_context("fork")
+    ctx = mp
     free_queue = ctx.SimpleQueue()
     full_queue = ctx.SimpleQueue()
 
@@ -328,6 +338,8 @@ def train(flags):  # pylint: disable=too-many-branches, too-many-statements
     learner_model = Net(
         env.observation_space.shape, env.action_space.n, flags.use_lstm
     ).to(device=flags.device)
+    #learner_model.train()
+    learner_model.share_memory()
 
     optimizer = torch.optim.RMSprop(
         learner_model.parameters(),
@@ -450,51 +462,6 @@ def train(flags):  # pylint: disable=too-many-branches, too-many-statements
     plogger.close()
 
 
-def test(flags, num_episodes: int = 10):
-    if flags.xpid is None:
-        checkpointpath = "./latest/model.tar"
-    else:
-        checkpointpath = os.path.expandvars(
-            os.path.expanduser("%s/%s/%s" % (flags.savedir, flags.xpid, "model.tar"))
-        )
-
-    gym_env = create_env(flags)
-    env = environment.Environment(gym_env)
-    model = Net(gym_env.observation_space.shape, gym_env.action_space.n, flags.use_lstm)
-    model.eval()
-    checkpoint = torch.load(checkpointpath)
-    #, map_location="cpu")
-    model.load_state_dict(checkpoint["model_state_dict"])
-
-    observation = env.initial()
-    returns = []
-    _max_ep_limit = 5000
-    while len(returns) < num_episodes:
-        if flags.mode == "test_render":
-            env.gym_env.render()
-        agent_outputs = model(observation)
-        policy_outputs, _ = agent_outputs
-        #print(policy_outputs["action"])
-        if observation["episode_step"].item() > _max_ep_limit:
-            # TODO dead loop reset seems not
-            observation = env.step(torch.tensor([1]))
-            #env.gym_env.reset()
-            pass
-        else:
-            observation = env.step(policy_outputs["action"])
-        if observation["done"].item():
-            returns.append(observation["episode_return"].item())
-            logging.info(
-                "Episode ended after %d steps. Return: %.1f",
-                observation["episode_step"].item(),
-                observation["episode_return"].item(),
-            )
-
-
-    env.close()
-    logging.info(
-        "Average returns over %i steps: %.1f", num_episodes, sum(returns) / len(returns)
-    )
 
 
 class AtariNet(nn.Module):
@@ -592,13 +559,6 @@ Net = AtariNet
 
 
 def create_env(flags):
-    _env = MyDoom(render=False)
+    _env = MyDoom(render=flags.render)
     _env = wrap_pytorch(_env)
     return _env
-
-
-def main(flags):
-    if flags.mode == "train":
-        train(flags)
-    else:
-        test(flags)
