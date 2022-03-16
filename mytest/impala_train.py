@@ -44,8 +44,9 @@ class conf:
         self.momentum = 0
         self.epsilon = 0.01
         self.grad_norm_clipping = 40.0
-        self.total_steps = 3e7
-        #self.total_steps = 1e6
+        self.total_steps = 2e7
+        self.actor_device_str = "cuda:0"
+        #self.actor_device_str = "cpu"
         #self.device = "cuda:0"
     """
      --num_actors 45 \

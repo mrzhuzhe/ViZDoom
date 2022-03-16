@@ -84,7 +84,7 @@ def act(
         gym_env = create_env(flags)
         seed = actor_index ^ int.from_bytes(os.urandom(4), byteorder="little")
         gym_env.seed(seed)
-        env = environment.Environment(gym_env, device=flags.device)        
+        env = environment.Environment(gym_env, device=flags.actor_device)        
         env_output = env.initial()
         agent_state = model.initial_state(batch_size=1)
         agent_output, unused_state = model(env_output, agent_state)
@@ -291,9 +291,12 @@ def train(flags):  # pylint: disable=too-many-branches, too-many-statements
         logging.info("Not using CUDA.")
         flags.device = torch.device("cpu")
 
+
+    flags.actor_device = torch.device(flags.actor_device_str) 
+
     env = create_env(flags)
 
-    model = Net(env.observation_space.shape, env.action_space.n, flags.use_lstm).to(flags.device)
+    model = Net(env.observation_space.shape, env.action_space.n, flags.use_lstm).to(flags.actor_device)
     buffers = create_buffers(flags, env.observation_space.shape, model.num_actions)
     
     n_trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
