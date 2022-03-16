@@ -33,6 +33,7 @@ from .core import environment
 from .core import file_writer
 from .core import prof
 from .core import vtrace
+from .core import td_lambda
 from .wrappers import wrap_pytorch
 from setup_env import MyDoom
 
@@ -73,7 +74,7 @@ def act(
     actor_index: int,
     free_queue: mp.SimpleQueue,
     full_queue: mp.SimpleQueue,
-    model: torch.nn.Module,
+    actor_model: torch.nn.Module,
     buffers: Buffers,
     initial_agent_state_buffers,
 ):
@@ -86,8 +87,8 @@ def act(
         gym_env.seed(seed)
         env = environment.Environment(gym_env, device=flags.actor_device)        
         env_output = env.initial()
-        agent_state = model.initial_state(batch_size=1)
-        agent_output, unused_state = model(env_output, agent_state)
+        agent_state = actor_model.initial_state(batch_size=1)
+        agent_output, unused_state = actor_model(env_output, agent_state)
         while True:
             #env.gym_env.render()
             index = free_queue.get()
@@ -108,9 +109,9 @@ def act(
                 timings.reset()
 
                 with torch.no_grad():
-                    agent_output, agent_state = model(env_output, agent_state)
+                    agent_output, agent_state = actor_model(env_output, agent_state)
 
-                timings.time("model")
+                timings.time("actor_model")
 
                 #print("env_output", env_output)
                 env_output = env.step(agent_output["action"])            
@@ -171,7 +172,7 @@ def get_batch(
 def learn(
     flags,
     actor_model,
-    model,
+    leaner_model,
     batch,
     initial_agent_state,
     optimizer,
@@ -181,7 +182,7 @@ def learn(
     """Performs a learning (optimization) step."""
     with lock:
 
-        learner_outputs, unused_state = model(batch, initial_agent_state)
+        learner_outputs, unused_state = leaner_model(batch, initial_agent_state)
 
         # Take final value function slice for bootstrapping.
         bootstrap_value = learner_outputs["baseline"][-1]
@@ -198,15 +199,25 @@ def learn(
 
         discounts = (~batch["done"]).float() * flags.discounting
 
+        values = learner_outputs["baseline"]
+
         vtrace_returns = vtrace.from_logits(
             behavior_policy_logits=batch["policy_logits"],
             target_policy_logits=learner_outputs["policy_logits"],
             actions=batch["action"],
             discounts=discounts,
             rewards=clipped_rewards,
-            values=learner_outputs["baseline"],
+            values=values,
             bootstrap_value=bootstrap_value,
         )
+
+        td_lambda_returns = td_lambda.td_lambda(
+                rewards=batch["reward"],
+                values=values,
+                bootstrap_value=bootstrap_value,
+                discounts=discounts,
+                lmb=flags.lmb
+            )
 
         pg_loss = compute_policy_gradient_loss(
             learner_outputs["policy_logits"],
@@ -214,7 +225,8 @@ def learn(
             vtrace_returns.pg_advantages,
         )
         baseline_loss = flags.baseline_cost * compute_baseline_loss(
-            vtrace_returns.vs - learner_outputs["baseline"]
+            #vtrace_returns.vs - learner_outputs["baseline"]
+            td_lambda_returns.vs - values
         )
         entropy_loss = flags.entropy_cost * compute_entropy_loss(
             learner_outputs["policy_logits"]
@@ -234,11 +246,11 @@ def learn(
 
         optimizer.zero_grad()
         total_loss.backward()
-        nn.utils.clip_grad_norm_(model.parameters(), flags.grad_norm_clipping)
+        nn.utils.clip_grad_norm_(leaner_model.parameters(), flags.grad_norm_clipping)
         optimizer.step()
         scheduler.step()
 
-        actor_model.load_state_dict(model.state_dict())
+        actor_model.load_state_dict(leaner_model.state_dict())
         return stats
 
 
@@ -291,24 +303,24 @@ def train(flags):  # pylint: disable=too-many-branches, too-many-statements
         logging.info("Not using CUDA.")
         flags.device = torch.device("cpu")
 
-
+    # only for actor model
     flags.actor_device = torch.device(flags.actor_device_str) 
 
     env = create_env(flags)
 
-    model = Net(env.observation_space.shape, env.action_space.n, flags.use_lstm).to(flags.actor_device)
-    buffers = create_buffers(flags, env.observation_space.shape, model.num_actions)
+    actor_model = Net(env.observation_space.shape, env.action_space.n, flags.use_lstm).to(flags.actor_device)
+    buffers = create_buffers(flags, env.observation_space.shape, actor_model.num_actions)
     
-    n_trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    n_trainable_params = sum(p.numel() for p in actor_model.parameters() if p.requires_grad)
     logging.info(f'Training model with {n_trainable_params:,d} parameters.')
 
     #model.eval()
-    model.share_memory()
+    actor_model.share_memory()
 
     # Add initial RNN state.
     initial_agent_state_buffers = []
     for _ in range(flags.num_buffers):
-        state = model.initial_state(batch_size=1)
+        state = actor_model.initial_state(batch_size=1)
         for t in state:
             t.share_memory_()
         initial_agent_state_buffers.append(state)
@@ -327,7 +339,7 @@ def train(flags):  # pylint: disable=too-many-branches, too-many-statements
                 i,
                 free_queue,
                 full_queue,
-                model,
+                actor_model,
                 buffers,
                 initial_agent_state_buffers,
             ),
@@ -381,7 +393,7 @@ def train(flags):  # pylint: disable=too-many-branches, too-many-statements
                 timings,
             )
             stats = learn(
-                flags, model, learner_model, batch, agent_state, optimizer, scheduler
+                flags, actor_model, learner_model, batch, agent_state, optimizer, scheduler
             )
             timings.time("learn")
             with lock:
@@ -410,7 +422,7 @@ def train(flags):  # pylint: disable=too-many-branches, too-many-statements
         logging.info("Saving checkpoint to %s", checkpointpath)
         torch.save(
             {
-                "model_state_dict": model.state_dict(),
+                "model_state_dict": actor_model.state_dict(),
                 "optimizer_state_dict": optimizer.state_dict(),
                 "scheduler_state_dict": scheduler.state_dict(),
                 "flags": vars(flags),
