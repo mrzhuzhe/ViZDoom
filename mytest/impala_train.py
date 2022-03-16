@@ -6,7 +6,7 @@ class conf:
         #self.env =  "PongNoFrameskip-v4"
         #self.env =  "BoxingNoFrameskip-v0"
 
-        self.savedir = "./runs/td_lambda"
+        self.savedir = "./runs/upgo_test"
         #self.xpid =  "torchbeast-train_test"
         self.xpid = None
         self.use_lstm = False
@@ -48,7 +48,7 @@ class conf:
         self.total_steps = 2e7
         self.actor_device_str = "cuda:0"
         
-        
+        self.upgo_cost = 0.1
         self.lmb = 0.8
     """
      --num_actors 45 \

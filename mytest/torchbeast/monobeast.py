@@ -34,6 +34,8 @@ from .core import file_writer
 from .core import prof
 from .core import vtrace
 from .core import td_lambda
+from .core import upgo
+
 from .wrappers import wrap_pytorch
 from setup_env import MyDoom
 
@@ -219,6 +221,29 @@ def learn(
                 lmb=flags.lmb
             )
 
+        #"""
+        upgo_returns = upgo.upgo(
+                rewards=batch["reward"],
+                values=values,
+                bootstrap_value=bootstrap_value,
+                discounts=discounts,
+                lmb=flags.lmb
+            )
+
+        upgo_clipped_importance = torch.minimum(
+                vtrace_returns.log_rhos.exp(),
+                torch.ones_like(vtrace_returns.log_rhos)
+            ).detach()
+
+        upgo_pg_loss = flags.upgo_cost * compute_policy_gradient_loss(
+                learner_outputs["policy_logits"],
+                batch["action"],
+                upgo_clipped_importance * upgo_returns.advantages
+            )
+        #"""
+
+
+
         pg_loss = compute_policy_gradient_loss(
             learner_outputs["policy_logits"],
             batch["action"],
@@ -232,13 +257,14 @@ def learn(
             learner_outputs["policy_logits"]
         )
 
-        total_loss = pg_loss + baseline_loss + entropy_loss
+        total_loss = pg_loss + baseline_loss + entropy_loss + upgo_pg_loss
         #print(batch["episode_return"], [batch["done"]])
         episode_returns = batch["episode_return"][batch["done"]]
         stats = {
             "episode_returns": tuple(episode_returns.cpu().numpy()),
             "mean_episode_return": torch.mean(episode_returns).item(),
             "total_loss": total_loss.item(),
+            "upgo_pg_loss": upgo_pg_loss.item(),
             "pg_loss": pg_loss.item(),
             "baseline_loss": baseline_loss.item(),
             "entropy_loss": entropy_loss.item(),
