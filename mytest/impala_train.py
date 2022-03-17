@@ -11,7 +11,6 @@ class conf:
         self.xpid = None
         self.use_lstm = False
         self.mode = "train"
-        self.render = False
         self.disable_checkpoint = None
 
         # for produce buffer 
@@ -49,6 +48,8 @@ class conf:
         self.epsilon = 0.01
         self.grad_norm_clipping = 40.0
         self.total_steps = 1e7
+
+        self.render = False
         self.actor_device_str = "cuda:0"
         self.use_tdlamda = True
         self.use_upgo = True
