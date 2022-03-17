@@ -220,33 +220,41 @@ def learn(
             bootstrap_value=bootstrap_value,
         )
 
-        td_lambda_returns = td_lambda.td_lambda(
-                rewards=batch["reward"],
-                values=values,
-                bootstrap_value=bootstrap_value,
-                discounts=discounts,
-                lmb=flags.lmb
-            )
+        if flags.use_tdlamda:
+            td_lambda_returns = td_lambda.td_lambda(
+                    rewards=batch["reward"],
+                    values=values,
+                    bootstrap_value=bootstrap_value,
+                    discounts=discounts,
+                    lmb=flags.lmb
+                )
+            _adv = td_lambda_returns.vs - values
+        else:
+            _adv = vtrace_returns.vs - learner_outputs["baseline"]
 
+            
         #"""
-        upgo_returns = upgo.upgo(
-                rewards=batch["reward"],
-                values=values,
-                bootstrap_value=bootstrap_value,
-                discounts=discounts,
-                lmb=flags.lmb
-            )
+        if flags.use_upgo:
+            upgo_returns = upgo.upgo(
+                    rewards=batch["reward"],
+                    values=values,
+                    bootstrap_value=bootstrap_value,
+                    discounts=discounts,
+                    lmb=flags.lmb
+                )
 
-        upgo_clipped_importance = torch.minimum(
-                vtrace_returns.log_rhos.exp(),
-                torch.ones_like(vtrace_returns.log_rhos)
-            ).detach()
+            upgo_clipped_importance = torch.minimum(
+                    vtrace_returns.log_rhos.exp(),
+                    torch.ones_like(vtrace_returns.log_rhos)
+                ).detach()
 
-        upgo_pg_loss = flags.upgo_cost * compute_policy_gradient_loss(
-                learner_outputs["policy_logits"],
-                batch["action"],
-                upgo_clipped_importance * upgo_returns.advantages
-            )
+            upgo_pg_loss = flags.upgo_cost * compute_policy_gradient_loss(
+                    learner_outputs["policy_logits"],
+                    batch["action"],
+                    upgo_clipped_importance * upgo_returns.advantages
+                )
+        else: 
+            upgo_pg_loss = 0
         #"""
 
 
@@ -257,8 +265,7 @@ def learn(
             vtrace_returns.pg_advantages,
         )
         baseline_loss = flags.baseline_cost * compute_baseline_loss(
-            #vtrace_returns.vs - learner_outputs["baseline"]
-            td_lambda_returns.vs - values
+            _adv
         )
         entropy_loss = flags.entropy_cost * compute_entropy_loss(
             learner_outputs["policy_logits"]

@@ -50,6 +50,8 @@ class conf:
         self.grad_norm_clipping = 40.0
         self.total_steps = 1e7
         self.actor_device_str = "cuda:0"
+        self.use_tdlamda = True
+        self.use_upgo = True
 
     """
      --num_actors 45 \
