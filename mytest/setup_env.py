@@ -38,9 +38,11 @@ class MyDoom(Env):
         # Game variables: HEALTH DAMAGE_TAKEN HITCOUNT SELECTED_WEAPON_AMMO
         """
         self.damage_taken = 0
-        self.hitcount = 0
-        self.ammo = 52 ## CHANGED
+        self.hitcount = 0        
         """
+        self.info_length = 2
+        self.ammo = 20
+        self.health = 100
 
         
     def step(self, action):
@@ -58,6 +60,9 @@ class MyDoom(Env):
             # Reward shaping
             #health, damage_taken, hitcount, ammo  = _stat.game_variables
             POSITION_X, POSITION_Y, ANGLE, SELECTED_WEAPON, SELECTED_WEAPON_AMMO, HEALTH, USER2 =  _stat.game_variables
+
+            self.ammo = SELECTED_WEAPON_AMMO
+            self.health = HEALTH
             """
             # Calculate reward deltas
             damage_taken_delta = -damage_taken + self.damage_taken
@@ -73,11 +78,14 @@ class MyDoom(Env):
             reward = movement_reward + hitcount_delta*200 
             """
             reward = movement_reward 
-            info = { "health": HEALTH }
+            #info = { "POSITION_X": POSITION_X, "POSITION_Y": POSITION_Y, "ANGLE": ANGLE, "SELECTED_WEAPON": SELECTED_WEAPON, "SELECTED_WEAPON_AMMO": SELECTED_WEAPON_AMMO, "HEALTH": HEALTH, "USER2": USER2  }
         else:
             state = np.zeros(self.observation_space.shape)
-            info = { "health": 0 }
+        
+        #info = { "ammo": self.ammo, "health": self.health }
+        info = np.array([[self.ammo/20 , self.health/100 ]], dtype=np.float32)
         return state, reward, done, info
+
     def resize(self, observation):
         gray = cv2.cvtColor(np.moveaxis(observation, 0, -1), cv2.COLOR_BGR2GRAY)
         resize = cv2.resize(gray, (WIDTH, HEIGHT), interpolation=cv2.INTER_CUBIC)

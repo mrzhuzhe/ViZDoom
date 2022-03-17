@@ -225,8 +225,8 @@ class FileWriter:
         self.metadata["successful"] = successful
         self._save_metadata()
 
-        for f in [self._logfile, self._fieldfile]:
-            f.close()
+        #for f in [self._logfile, self._fieldfile]:
+        #    f.close()
 
     def _save_metadata(self) -> None:
         with open(self.paths["meta"], "w") as jsonfile:
