@@ -12,6 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""
+todo
+1. teacher kl
+2. baseline training only
+
+"""
+
 import argparse
 import logging
 import os
@@ -399,6 +406,7 @@ def train(flags):  # pylint: disable=too-many-branches, too-many-statements
         "pg_loss",
         "baseline_loss",
         "entropy_loss",
+        "upgo_pg_loss"
     ]
     logger.info("# Step\t%s", "\t".join(stat_keys))
 

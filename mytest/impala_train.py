@@ -6,7 +6,7 @@ class conf:
         #self.env =  "PongNoFrameskip-v4"
         #self.env =  "BoxingNoFrameskip-v0"
 
-        self.savedir = "./runs/upgo_test"
+        self.savedir = "./runs/multiinput_test"
         #self.xpid =  "torchbeast-train_test"
         self.xpid = None
         self.use_lstm = False
@@ -33,9 +33,12 @@ class conf:
         self.disable_cuda = None
 
         #self.entropy_cost = 0.0006
-        self.entropy_cost = 0.001
-        #self.baseline_cost = 0.5
-        self.baseline_cost = 1 # td lambda
+        self.entropy_cost = 0.01
+        self.baseline_cost = 0.5 # td lambda
+                
+        self.upgo_cost = 0.1
+        self.lmb = 0.8
+
         self.discounting = 0.99
         self.reward_clipping = "abs_one"
 
@@ -45,11 +48,9 @@ class conf:
         self.momentum = 0
         self.epsilon = 0.01
         self.grad_norm_clipping = 40.0
-        self.total_steps = 2e7
+        self.total_steps = 1e7
         self.actor_device_str = "cuda:0"
-        
-        self.upgo_cost = 0.1
-        self.lmb = 0.8
+
     """
      --num_actors 45 \
      --total_steps 30000000 \
