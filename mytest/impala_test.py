@@ -7,7 +7,7 @@ from time import sleep
 
 def test(flags, num_episodes: int = 10):
     
-    checkpointpath = "./runs/1.2MstepTdlambda/model.tar"
+    checkpointpath = "/mnt/e28833eb-0c99-4fe2-802a-09fa58d9c9f5/code/ViZDoom/mytest/runs/reward_shaping/torchbeast-20220318-194533/model.tar"
 
     gym_env = create_env(flags)
     env = environment.Environment(gym_env, torch.device("cpu"))

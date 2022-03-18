@@ -75,17 +75,21 @@ class MyDoom(Env):
             reward = movement_reward + hitcount_delta*200 
             """
 
+
             ammo_delta = SELECTED_WEAPON_AMMO - self.ammo
             health_delta = HEALTH - self.health
+            
+            self.ammo = SELECTED_WEAPON_AMMO
+            self.health = HEALTH
 
             ammo_reward = 0
             # ammo picked up 
             if ammo_delta > 0:
-                ammo_reward = 0.1
+                ammo_reward = 0.5
             # medic picked up
             medic_reward = 0
             if health_delta > 0:
-                medic_reward = 0.1
+                medic_reward = 0.5
 
             reward = movement_reward + ammo_reward + medic_reward
             info = { "health": HEALTH, "movement_reward": movement_reward }
