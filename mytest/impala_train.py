@@ -6,7 +6,7 @@ class conf:
         #self.env =  "PongNoFrameskip-v4"
         #self.env =  "BoxingNoFrameskip-v0"
 
-        self.savedir = "./runs/multiinput_test"
+        self.savedir = "./runs/teacher_kl_test"
         #self.xpid =  "torchbeast-train_test"
         self.xpid = None
         self.use_lstm = False
@@ -51,8 +51,11 @@ class conf:
 
         self.render = False
         self.actor_device_str = "cuda:0"
-        self.use_tdlamda = True
-        self.use_upgo = True
+        self.use_tdlamda = False
+        self.use_upgo = False
+        self.use_teacher = False
+        self.teacher_model_path = "/mnt/e28833eb-0c99-4fe2-802a-09fa58d9c9f5/code/ViZDoom/mytest/runs/1.2MstepTdlambda/model.tar"
+        self.teacher_kl_cost = 0.05
 
     """
      --num_actors 45 \

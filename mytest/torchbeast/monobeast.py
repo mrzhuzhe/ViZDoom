@@ -77,6 +77,21 @@ def compute_policy_gradient_loss(logits, actions, advantages):
     cross_entropy = cross_entropy.view_as(advantages)
     return torch.sum(cross_entropy * advantages.detach())
 
+def compute_teacher_kl_loss(
+        learner_policy_logits: torch.Tensor,
+        teacher_policy_logits: torch.Tensor
+) -> torch.Tensor:
+    learner_policy_log_probs = F.log_softmax(learner_policy_logits, dim=-1)
+    teacher_policy = F.softmax(teacher_policy_logits, dim=-1)
+    kl_div = F.kl_div(
+        learner_policy_log_probs,
+        teacher_policy.detach(),
+        reduction="none",
+        log_target=False
+    ).sum(dim=-1)
+    # Sum over y, x, and action_planes dimensions to combine kl divergences from different actions
+    return kl_div.sum(dim=-1).sum(dim=-1)
+
 
 def act(
     flags,
@@ -182,6 +197,7 @@ def learn(
     flags,
     actor_model,
     leaner_model,
+    teacher_model,
     batch,
     initial_agent_state,
     optimizer,
@@ -192,6 +208,17 @@ def learn(
     with lock:
 
         learner_outputs, unused_state = leaner_model(batch, initial_agent_state)
+
+
+        if flags.use_teacher:
+            with torch.no_grad():
+                teacher_model_outputs, unused_state = teacher_model(batch, initial_agent_state)
+                teacher_model_outputs = {key: tensor[:-1] for key, tensor in teacher_model_outputs.items()}
+        else:
+            teacher_model_outputs = None
+
+        
+
 
         # Take final value function slice for bootstrapping.
         bootstrap_value = learner_outputs["baseline"][-1]
@@ -219,6 +246,14 @@ def learn(
             values=values,
             bootstrap_value=bootstrap_value,
         )
+
+        if flags.use_teacher:
+            teacher_kl_loss = flags.teacher_kl_cost * compute_teacher_kl_loss(
+                learner_outputs["policy_logits"],
+                teacher_model_outputs["policy_logits"]
+            )
+        else:
+            teacher_kl_loss = torch.tensor(0)
 
         if flags.use_tdlamda:
             td_lambda_returns = td_lambda.td_lambda(
@@ -254,7 +289,7 @@ def learn(
                     upgo_clipped_importance * upgo_returns.advantages
                 )
         else: 
-            upgo_pg_loss = 0
+            upgo_pg_loss = torch.tensor(0)
         #"""
 
 
@@ -271,7 +306,7 @@ def learn(
             learner_outputs["policy_logits"]
         )
 
-        total_loss = pg_loss + baseline_loss + entropy_loss + upgo_pg_loss
+        total_loss = pg_loss + baseline_loss + entropy_loss + upgo_pg_loss + teacher_kl_loss
         #print(batch["episode_return"], [batch["done"]])
         episode_returns = batch["episode_return"][batch["done"]]
         stats = {
@@ -282,6 +317,7 @@ def learn(
             "pg_loss": pg_loss.item(),
             "baseline_loss": baseline_loss.item(),
             "entropy_loss": entropy_loss.item(),
+            "teacher_kl_loss": teacher_kl_loss.item()
         }
 
         optimizer.zero_grad()
@@ -387,6 +423,20 @@ def train(flags):  # pylint: disable=too-many-branches, too-many-statements
         actor.start()
         actor_processes.append(actor)
 
+    # Load teacher model for KL loss
+    if flags.use_teacher:
+        _teacher_model_path = flags.teacher_model_path
+        teacher_model = Net(env.observation_space.shape, env.action_space.n, flags.use_lstm).to(device=flags.device)
+        teacher_model.load_state_dict(
+            torch.load(
+                _teacher_model_path,
+                map_location=torch.device("cpu")
+            )["model_state_dict"]
+        )
+        teacher_model.eval()
+    else:
+        teacher_model = None
+        
     learner_model = Net(
         env.observation_space.shape, env.action_space.n, flags.use_lstm
     ).to(device=flags.device)
@@ -413,7 +463,8 @@ def train(flags):  # pylint: disable=too-many-branches, too-many-statements
         "pg_loss",
         "baseline_loss",
         "entropy_loss",
-        "upgo_pg_loss"
+        "upgo_pg_loss",
+        "teacher_kl_loss"
     ]
     logger.info("# Step\t%s", "\t".join(stat_keys))
 
@@ -434,7 +485,7 @@ def train(flags):  # pylint: disable=too-many-branches, too-many-statements
                 timings,
             )
             stats = learn(
-                flags, actor_model, learner_model, batch, agent_state, optimizer, scheduler
+                flags, actor_model, learner_model, teacher_model, batch, agent_state, optimizer, scheduler
             )
             timings.time("learn")
             with lock:
