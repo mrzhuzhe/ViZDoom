@@ -27,6 +27,7 @@ class Environment:
         self.gym_env = gym_env
         self.episode_return = None
         self.episode_step = None
+        self.movement_reward = None
         self.device = device
 
     def initial(self):
@@ -38,7 +39,7 @@ class Environment:
         initial_done = torch.ones(1, 1, dtype=torch.uint8, device=self.device)
         initial_frame = _format_frame(self.gym_env.reset(), self.device)
 
-        movement_reward = torch.ones(1, 1, dtype=torch.uint8, device=self.device)
+        self.movement_reward = torch.zeros(1, 1, device=self.device)
 
         return dict(
             frame=initial_frame,
@@ -47,7 +48,7 @@ class Environment:
             episode_return=self.episode_return,
             episode_step=self.episode_step,
             last_action=initial_last_action,
-            movement_reward=movement_reward
+            movement_reward=self.movement_reward
         )
 
     def step(self, action):
@@ -57,16 +58,18 @@ class Environment:
         self.episode_return += reward
         episode_step = self.episode_step
         episode_return = self.episode_return
+        self.movement_reward += unused_info["movement_reward"]
+        movement_reward = self.movement_reward
+
         if done:
             frame = self.gym_env.reset()
             self.episode_return = torch.zeros(1, 1, device=self.device)
             self.episode_step = torch.zeros(1, 1, dtype=torch.int32, device=self.device)
+            self.movement_reward = torch.zeros(1, 1, device=self.device)
 
         frame = _format_frame(frame, device=self.device)
         reward = torch.tensor(reward, device=self.device).view(1, 1)
         done = torch.tensor(done, device=self.device).view(1, 1)
-        
-        movement_reward = torch.tensor(unused_info["movement_reward"], device=self.device).view(1, 1)
         
         return dict(
             frame=frame,

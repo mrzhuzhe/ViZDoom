@@ -309,6 +309,9 @@ def learn(
         total_loss = pg_loss + baseline_loss + entropy_loss + upgo_pg_loss + teacher_kl_loss
         #print(batch["episode_return"], [batch["done"]])
         episode_returns = batch["episode_return"][batch["done"]]
+
+        movement_reward = batch["movement_reward"][batch["done"]]
+
         stats = {
             "episode_returns": tuple(episode_returns.cpu().numpy()),
             "mean_episode_return": torch.mean(episode_returns).item(),
@@ -317,7 +320,8 @@ def learn(
             "pg_loss": pg_loss.item(),
             "baseline_loss": baseline_loss.item(),
             "entropy_loss": entropy_loss.item(),
-            "teacher_kl_loss": teacher_kl_loss.item()
+            "teacher_kl_loss": teacher_kl_loss.item(),
+            "movement_reward_return": torch.mean(movement_reward).item()
         }
 
         optimizer.zero_grad()
@@ -342,6 +346,7 @@ def create_buffers(flags, obs_shape, num_actions) -> Buffers:
         baseline=dict(size=(T + 1,), dtype=torch.float32),
         last_action=dict(size=(T + 1,), dtype=torch.int64),
         action=dict(size=(T + 1,), dtype=torch.int64),
+        movement_reward=dict(size=(T + 1,), dtype=torch.float32)
     )
     buffers: Buffers = {key: [] for key in specs}
     for _ in range(flags.num_buffers):
@@ -464,7 +469,8 @@ def train(flags):  # pylint: disable=too-many-branches, too-many-statements
         "baseline_loss",
         "entropy_loss",
         "upgo_pg_loss",
-        "teacher_kl_loss"
+        "teacher_kl_loss",
+        "movement_reward_return"
     ]
     logger.info("# Step\t%s", "\t".join(stat_keys))
 

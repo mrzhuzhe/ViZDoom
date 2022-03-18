@@ -81,12 +81,12 @@ class MyDoom(Env):
             ammo_reward = 0
             # ammo picked up 
             if ammo_delta > 0:
-                ammo_reward = 0.5
-            
+                ammo_reward = 0.1
+            # medic picked up
             medic_reward = 0
             if health_delta > 0:
-                medic_reward = 0.5
-                
+                medic_reward = 0.1
+
             reward = movement_reward + ammo_reward + medic_reward
             info = { "health": HEALTH, "movement_reward": movement_reward }
         else:
