@@ -253,7 +253,7 @@ def learn(
                 teacher_model_outputs["policy_logits"]
             )
         else:
-            teacher_kl_loss = torch.zeros_like(combined_teacher_kl_loss)
+            teacher_kl_loss = torch.tensor(0)
 
         if flags.use_tdlamda:
             td_lambda_returns = td_lambda.td_lambda(
@@ -289,7 +289,7 @@ def learn(
                     upgo_clipped_importance * upgo_returns.advantages
                 )
         else: 
-            upgo_pg_loss = 0
+            upgo_pg_loss = torch.tensor(0)
         #"""
 
 
@@ -434,7 +434,9 @@ def train(flags):  # pylint: disable=too-many-branches, too-many-statements
             )["model_state_dict"]
         )
         teacher_model.eval()
-
+    else:
+        teacher_model = None
+        
     learner_model = Net(
         env.observation_space.shape, env.action_space.n, flags.use_lstm
     ).to(device=flags.device)
