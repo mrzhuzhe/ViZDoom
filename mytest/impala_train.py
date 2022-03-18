@@ -6,7 +6,7 @@ class conf:
         #self.env =  "PongNoFrameskip-v4"
         #self.env =  "BoxingNoFrameskip-v0"
 
-        self.savedir = "./runs/reward_shaping"
+        self.savedir = "./runs/reward_shaping_multiinp"
         #self.xpid =  "torchbeast-train_test"
         self.xpid = None
         self.use_lstm = False

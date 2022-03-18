@@ -41,6 +41,7 @@ class MyDoom(Env):
         self.hitcount = 0
         self.ammo = 52 ## CHANGED
         """
+        self.info_length = 2
         self.health = 100
         self.ammo = 20
 
@@ -92,10 +93,12 @@ class MyDoom(Env):
                 medic_reward = 0.5
 
             reward = movement_reward + ammo_reward + medic_reward
-            info = { "health": HEALTH, "movement_reward": movement_reward }
+            
         else:
             state = np.zeros(self.observation_space.shape)
-            info = { "health": 0, "movement_reward": 0 }
+        info = { 
+            'game_info': np.array([[self.ammo/20 , self.health/100 ]], dtype=np.float32),
+            "movement_reward": movement_reward }
         return state, reward, done, info
     def resize(self, observation):
         gray = cv2.cvtColor(np.moveaxis(observation, 0, -1), cv2.COLOR_BGR2GRAY)
