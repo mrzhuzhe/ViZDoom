@@ -600,7 +600,7 @@ class AtariNet(nn.Module):
             )
 
         # Fully connected layer.
-        self.fc = nn.Linear(9216+64, 512)
+        self.fc = nn.Linear(9216+32, 512)
 
         # FC output size + one-hot of last action + last reward.
         core_output_size = self.fc.out_features + num_actions + 1
