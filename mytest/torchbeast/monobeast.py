@@ -433,7 +433,7 @@ def train(flags):  # pylint: disable=too-many-branches, too-many-statements
     # Load teacher model for KL loss
     if flags.use_teacher:
         _teacher_model_path = flags.teacher_model_path
-        teacher_model = Net(env.observation_space.shape, env.action_space.n, flags.use_lstm).to(device=flags.device)
+        teacher_model = Net(env.observation_space.shape, env.action_space.n, _info_len, flags.use_lstm).to(device=flags.device)
         teacher_model.load_state_dict(
             torch.load(
                 _teacher_model_path,
