@@ -309,6 +309,9 @@ def learn(
         total_loss = pg_loss + baseline_loss + entropy_loss + upgo_pg_loss + teacher_kl_loss
         #print(batch["episode_return"], [batch["done"]])
         episode_returns = batch["episode_return"][batch["done"]]
+
+        movement_reward = batch["movement_reward"][batch["done"]]
+
         stats = {
             "episode_returns": tuple(episode_returns.cpu().numpy()),
             "mean_episode_return": torch.mean(episode_returns).item(),
@@ -317,7 +320,8 @@ def learn(
             "pg_loss": pg_loss.item(),
             "baseline_loss": baseline_loss.item(),
             "entropy_loss": entropy_loss.item(),
-            "teacher_kl_loss": teacher_kl_loss.item()
+            "teacher_kl_loss": teacher_kl_loss.item(),
+            "movement_reward_return": torch.mean(movement_reward).item()
         }
 
         optimizer.zero_grad()
@@ -330,7 +334,7 @@ def learn(
         return stats
 
 
-def create_buffers(flags, obs_shape, num_actions) -> Buffers:
+def create_buffers(flags, obs_shape, num_actions, info_len) -> Buffers:
     T = flags.unroll_length
     specs = dict(
         frame=dict(size=(T + 1, *obs_shape), dtype=torch.uint8),
@@ -342,6 +346,8 @@ def create_buffers(flags, obs_shape, num_actions) -> Buffers:
         baseline=dict(size=(T + 1,), dtype=torch.float32),
         last_action=dict(size=(T + 1,), dtype=torch.int64),
         action=dict(size=(T + 1,), dtype=torch.int64),
+        movement_reward=dict(size=(T + 1,), dtype=torch.float32),
+        info=dict(size=(T + 1, info_len), dtype=torch.float32),
     )
     buffers: Buffers = {key: [] for key in specs}
     for _ in range(flags.num_buffers):
@@ -383,9 +389,10 @@ def train(flags):  # pylint: disable=too-many-branches, too-many-statements
     flags.actor_device = torch.device(flags.actor_device_str) 
 
     env = create_env(flags)
+    _info_len = env.info_length
 
-    actor_model = Net(env.observation_space.shape, env.action_space.n, flags.use_lstm).to(flags.actor_device)
-    buffers = create_buffers(flags, env.observation_space.shape, actor_model.num_actions)
+    actor_model = Net(env.observation_space.shape, env.action_space.n, _info_len, flags.use_lstm).to(flags.actor_device)
+    buffers = create_buffers(flags, env.observation_space.shape, actor_model.num_actions, _info_len)
     
     n_trainable_params = sum(p.numel() for p in actor_model.parameters() if p.requires_grad)
     logging.info(f'Training model with {n_trainable_params:,d} parameters.')
@@ -426,7 +433,7 @@ def train(flags):  # pylint: disable=too-many-branches, too-many-statements
     # Load teacher model for KL loss
     if flags.use_teacher:
         _teacher_model_path = flags.teacher_model_path
-        teacher_model = Net(env.observation_space.shape, env.action_space.n, flags.use_lstm).to(device=flags.device)
+        teacher_model = Net(env.observation_space.shape, env.action_space.n, _info_len, flags.use_lstm).to(device=flags.device)
         teacher_model.load_state_dict(
             torch.load(
                 _teacher_model_path,
@@ -438,7 +445,7 @@ def train(flags):  # pylint: disable=too-many-branches, too-many-statements
         teacher_model = None
         
     learner_model = Net(
-        env.observation_space.shape, env.action_space.n, flags.use_lstm
+        env.observation_space.shape, env.action_space.n, _info_len, flags.use_lstm
     ).to(device=flags.device)
     #learner_model.train()
     learner_model.share_memory()
@@ -464,7 +471,8 @@ def train(flags):  # pylint: disable=too-many-branches, too-many-statements
         "baseline_loss",
         "entropy_loss",
         "upgo_pg_loss",
-        "teacher_kl_loss"
+        "teacher_kl_loss",
+        "movement_reward_return"
     ]
     logger.info("# Step\t%s", "\t".join(stat_keys))
 
@@ -569,7 +577,7 @@ def train(flags):  # pylint: disable=too-many-branches, too-many-statements
 
 
 class AtariNet(nn.Module):
-    def __init__(self, observation_shape, num_actions, use_lstm=False):
+    def __init__(self, observation_shape, num_actions, info_shape, use_lstm=False):
         super(AtariNet, self).__init__()
         self.observation_shape = observation_shape
         self.num_actions = num_actions
@@ -584,8 +592,15 @@ class AtariNet(nn.Module):
         self.conv2 = nn.Conv2d(32, 64, kernel_size=4, stride=2)
         self.conv3 = nn.Conv2d(64, 64, kernel_size=3, stride=1)
 
+        self.info_fc = nn.Sequential(
+            nn.Linear(info_shape, 32),
+            nn.ReLU(),
+            nn.Linear(32, 32),
+            nn.ReLU()
+            )
+
         # Fully connected layer.
-        self.fc = nn.Linear(9216, 512)
+        self.fc = nn.Linear(9216+32, 512)
 
         # FC output size + one-hot of last action + last reward.
         core_output_size = self.fc.out_features + num_actions + 1
@@ -614,6 +629,12 @@ class AtariNet(nn.Module):
         x = F.relu(self.conv2(x))
         x = F.relu(self.conv3(x))
         x = x.view(T * B, -1)
+
+        _info_feature = self.info_fc(inputs["info"])
+        _info_feature = _info_feature.view(T * B, -1)
+
+        x = torch.cat([x, _info_feature], dim=-1)
+
         x = F.relu(self.fc(x))
 
         one_hot_last_action = F.one_hot(

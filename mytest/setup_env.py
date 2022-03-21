@@ -41,6 +41,9 @@ class MyDoom(Env):
         self.hitcount = 0
         self.ammo = 52 ## CHANGED
         """
+        self.info_length = 2
+        self.health = 100
+        self.ammo = 20
 
         
     def step(self, action):
@@ -72,11 +75,30 @@ class MyDoom(Env):
             #reward = movement_reward + damage_taken_delta*10 + hitcount_delta*400  + ammo_delta*5
             reward = movement_reward + hitcount_delta*200 
             """
-            reward = movement_reward 
-            info = { "health": HEALTH }
+
+
+            ammo_delta = SELECTED_WEAPON_AMMO - self.ammo
+            health_delta = HEALTH - self.health
+            
+            self.ammo = SELECTED_WEAPON_AMMO
+            self.health = HEALTH
+
+            ammo_reward = 0
+            # ammo picked up 
+            if ammo_delta > 0:
+                ammo_reward = 0.5
+            # medic picked up
+            medic_reward = 0
+            if health_delta > 0:
+                medic_reward = 0.5
+
+            reward = movement_reward + ammo_reward + medic_reward
+            
         else:
             state = np.zeros(self.observation_space.shape)
-            info = { "health": 0 }
+        info = { 
+            'game_info': np.array([[self.ammo/20 , self.health/100 ]], dtype=np.float32),
+            "movement_reward": movement_reward }
         return state, reward, done, info
     def resize(self, observation):
         gray = cv2.cvtColor(np.moveaxis(observation, 0, -1), cv2.COLOR_BGR2GRAY)

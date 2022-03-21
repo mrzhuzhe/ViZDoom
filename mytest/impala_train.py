@@ -6,7 +6,7 @@ class conf:
         #self.env =  "PongNoFrameskip-v4"
         #self.env =  "BoxingNoFrameskip-v0"
 
-        self.savedir = "./runs/teacher_kl_test"
+        self.savedir = "./runs/reward_shaping_multiinp_teacherKL"
         #self.xpid =  "torchbeast-train_test"
         self.xpid = None
         self.use_lstm = False
@@ -47,14 +47,14 @@ class conf:
         self.momentum = 0
         self.epsilon = 0.01
         self.grad_norm_clipping = 40.0
-        self.total_steps = 1e7
+        self.total_steps = 2e7
 
         self.render = False
         self.actor_device_str = "cuda:0"
         self.use_tdlamda = False
         self.use_upgo = False
-        self.use_teacher = False
-        self.teacher_model_path = "/mnt/e28833eb-0c99-4fe2-802a-09fa58d9c9f5/code/ViZDoom/mytest/runs/1.2MstepTdlambda/model.tar"
+        self.use_teacher = True
+        self.teacher_model_path = "/mnt/e28833eb-0c99-4fe2-802a-09fa58d9c9f5/code/ViZDoom/mytest/logs/battle1/pickup_medic_multiinp_rewardshaping/model.tar"
         self.teacher_kl_cost = 0.05
 
     """

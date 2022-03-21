@@ -27,6 +27,7 @@ class Environment:
         self.gym_env = gym_env
         self.episode_return = None
         self.episode_step = None
+        self.movement_reward = None
         self.device = device
 
     def initial(self):
@@ -37,6 +38,10 @@ class Environment:
         self.episode_step = torch.zeros(1, 1, dtype=torch.int32, device=self.device)
         initial_done = torch.ones(1, 1, dtype=torch.uint8, device=self.device)
         initial_frame = _format_frame(self.gym_env.reset(), self.device)
+
+        game_info = torch.zeros(1, self.gym_env.info_length, dtype=torch.float32, device=self.device)
+        self.movement_reward = torch.zeros(1, 1, device=self.device)
+
         return dict(
             frame=initial_frame,
             reward=initial_reward,
@@ -44,23 +49,29 @@ class Environment:
             episode_return=self.episode_return,
             episode_step=self.episode_step,
             last_action=initial_last_action,
+            movement_reward=self.movement_reward,
+            info=game_info
         )
 
     def step(self, action):
-        frame, reward, done, unused_info = self.gym_env.step(action.item())
-        #print(action, reward, done, unused_info)
+        frame, reward, done, game_info = self.gym_env.step(action.item())
         self.episode_step += 1
         self.episode_return += reward
         episode_step = self.episode_step
         episode_return = self.episode_return
+        self.movement_reward += game_info["movement_reward"]
+        movement_reward = self.movement_reward
+
         if done:
             frame = self.gym_env.reset()
             self.episode_return = torch.zeros(1, 1, device=self.device)
             self.episode_step = torch.zeros(1, 1, dtype=torch.int32, device=self.device)
+            self.movement_reward = torch.zeros(1, 1, device=self.device)
 
         frame = _format_frame(frame, device=self.device)
         reward = torch.tensor(reward, device=self.device).view(1, 1)
         done = torch.tensor(done, device=self.device).view(1, 1)
+        game_info = torch.from_numpy(game_info["game_info"]).to(self.device)
 
         return dict(
             frame=frame,
@@ -69,6 +80,8 @@ class Environment:
             episode_return=episode_return,
             episode_step=episode_step,
             last_action=action,
+            movement_reward=movement_reward,
+            info=game_info
         )
     def reset(self):
         return self.initial()
