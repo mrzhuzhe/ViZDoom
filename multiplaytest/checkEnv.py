@@ -26,6 +26,10 @@ env_output = multi_env.initial()
 #obs = multi_env.reset()
 visualize = True
 P = 2
+print(multi_env.action_space.nvec)
+
+
+"""
 
 for i in range(num_steps):
     #actions = [multi_env.action_space.sample()] * len(obs)
@@ -53,6 +57,9 @@ for i in range(num_steps):
     #    multi_env.reset()
 
 multi_env.close()
+
+"""
+
 
 
 
