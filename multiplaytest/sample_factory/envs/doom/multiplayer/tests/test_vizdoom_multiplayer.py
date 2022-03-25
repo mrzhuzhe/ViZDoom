@@ -47,7 +47,6 @@ class TestDoom(TestCase):
         for i in range(num_steps):
             actions = [multi_env.action_space.sample()] * len(obs)
             obs, rew, dones, infos = multi_env.step(actions)
-            print("worker_index", worker_index,"obs", obs[0]['obs'].shape)
             if visualize:
                 multi_env.render()
 
@@ -87,4 +86,4 @@ class TestDoom(TestCase):
             handler.close()
             
 a = TestDoom()
-a.test_doom_multiagent_parallel()
+a.test_doom_multiagent()

@@ -13,12 +13,11 @@
 # limitations under the License.
 """The environment class for MonoBeast."""
 import torch
-
+import numpy as np
 
 def _format_frame(frame, device):
     # neeed to be gray scale
-    #frame = torch.from_numpy(frame).to(device)
-    frame = torch.tensor(frame).to(device)
+    frame = torch.from_numpy(frame).to(device)
     return frame.view((1, 1) + frame.shape)  # (...) -> (T,B,...).
 
 P = 2
@@ -42,7 +41,7 @@ class Environment:
         initial_done = torch.ones(1, P, 1, dtype=torch.uint8, device=self.device)
         
         obs = self.gym_env.reset()
-        initial_frame = _format_frame([obs[i]['obs'] for i in range(P)], self.device)
+        initial_frame = _format_frame(np.array([obs[i]['obs'] for i in range(P)]), self.device)
 
         game_info = torch.zeros(1, 1, P, 23, dtype=torch.float32, device=self.device)
 
@@ -52,7 +51,7 @@ class Environment:
             done=initial_done,
             episode_return=self.episode_return,
             episode_step=self.episode_step,
-            last_action=initial_last_action,
+            #last_action=initial_last_action,
             info=game_info
         )
 
@@ -61,20 +60,21 @@ class Environment:
         self.episode_step += 1
         episode_step = self.episode_step
 
-        if done:
+        if all(done):
             obs = self.gym_env.reset()
             self.episode_return = torch.zeros(1, P, 1, device=self.device)
             self.episode_step = torch.zeros(1, P, 1, dtype=torch.int32, device=self.device)
         
+        # maybe need a faster way to 
+        frame = _format_frame(np.array([obs[i]['obs'] for i in range(P)]), device=self.device)
 
-        frame = _format_frame([obs[i]['obs'] for i in range(P)], device=self.device)        
         reward = torch.tensor(reward, device=self.device).view(1, P, 1)
         done = torch.tensor(done, device=self.device).view(1, P, 1)
 
         self.episode_return += reward
         episode_return = self.episode_return
         
-        game_info = torch.tensor([obs[i]['measurements'] for i in range(P)], device=self.device)
+        game_info = torch.from_numpy(np.array([obs[i]['measurements'] for i in range(P)])).to(self.device)
     
         return dict(
             frame=frame,
@@ -82,7 +82,7 @@ class Environment:
             done=done,
             episode_return=episode_return,
             episode_step=episode_step,
-            last_action=action.view((1, ) + action.shape),
+            #last_action=action.view((1, ) + action.shape),
             info=game_info.view((1, 1) + game_info.shape)
         )
     def reset(self):
