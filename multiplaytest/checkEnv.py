@@ -20,25 +20,36 @@ num_steps = 1000
 env_config = AttrDict({'worker_index': worker_index, 'vector_index': 0, 'safe_init': False})
 multi_env = make_standard_dm(env_config)
 
-obs = multi_env.reset()
 
+
+multi_env = environment.Environment(multi_env, device=torch.device("cpu"))        
+env_output = multi_env.initial()
+
+#obs = multi_env.reset()
 visualize = False
 
 for i in range(num_steps):
-    actions = [multi_env.action_space.sample()] * len(obs)
-    obs, rew, dones, infos = multi_env.step(actions)
+    #actions = [multi_env.action_space.sample()] * len(obs)
+    actions = [multi_env.action_space.sample()] * 2
+    env_output = multi_env.step(torch.tensor(actions))
+    obs = env_output["frame"]
+    dones = env_output["done"]
     if visualize:
         multi_env.render()
 
-    print(obs[0]["measurements"]) # obs is an array dict_keys(['obs', 'measurements'])  obs shape (3, 72, 128) 
+    #print(obs[0]["measurements"]) # obs is an array dict_keys(['obs', 'measurements'])  obs shape (3, 72, 128) 
     # ViZDoom/multiplaytest/sample_factory/envs/doom/wrappers/additional_input.py measurements 23 is info mation
     
     # print(infos) 49 info 
     #print(rew) # already has reward shaping 
     #print(dones)
 
-    if all(dones):
-        multi_env.reset()
+    for key in env_output:
+        #if key != "frame":
+        print(key, env_output[key].shape)
+
+    #if all(dones):
+    #    multi_env.reset()
 
 
 multi_env.close()
