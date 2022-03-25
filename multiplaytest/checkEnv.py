@@ -30,8 +30,8 @@ P = 2
 for i in range(num_steps):
     #actions = [multi_env.action_space.sample()] * len(obs)
     actions = [multi_env.action_space.sample()] * P
-    #env_output = multi_env.step(torch.tensor(actions))
-    env_output = multi_env.step(actions)
+    env_output = multi_env.step(torch.tensor(actions))
+    #env_output = multi_env.step(actions)
     obs = env_output["frame"]
     dones = env_output["done"]
     if visualize:
@@ -44,10 +44,10 @@ for i in range(num_steps):
     #print(rew) # already has reward shaping 
     #print(dones)
 
-    #for key in env_output:
+    for key in env_output:
     #    print(key, env_output[key].shape)
-    #    if key == "reward":
-    #        print(key, env_output[key])
+        if key == "episode_return":
+            print(key, env_output[key])
     
     #if all(dones[0]):
     #    multi_env.reset()

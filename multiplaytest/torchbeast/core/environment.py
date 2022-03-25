@@ -51,7 +51,7 @@ class Environment:
             done=initial_done,
             episode_return=self.episode_return,
             episode_step=self.episode_step,
-            #last_action=initial_last_action,
+            last_action=initial_last_action,
             info=game_info
         )
 
@@ -82,7 +82,7 @@ class Environment:
             done=done,
             episode_return=episode_return,
             episode_step=episode_step,
-            #last_action=action.view((1, ) + action.shape),
+            last_action=action.view((1, ) + action.shape),
             info=game_info.view((1, 1) + game_info.shape)
         )
     def reset(self):
