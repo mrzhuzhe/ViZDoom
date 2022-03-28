@@ -91,6 +91,8 @@ class PolicyWorker:
 
                 indices = tuple(np.array(indices).T)
                 observations = self.traj_tensors['obs'].index(indices)
+
+                #print("-----------------------observations--------------", observations['obs'].shape)
                 rnn_states = self.traj_tensors['rnn_states'][indices]
 
             with timing.add_time('stack'):

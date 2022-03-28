@@ -48,6 +48,8 @@ from sample_factory.envs.doom.doom_utils import make_doom_env
 from sample_factory.envs.tests.test_envs import default_doom_cfg
 
 
+from .action_distributions import calc_num_actions, calc_num_logits, get_action_distribution
+
 
 logging.basicConfig(
     format=(
@@ -101,8 +103,7 @@ def act(
     free_queue: mp.SimpleQueue,
     full_queue: mp.SimpleQueue,
     actor_model: torch.nn.Module,
-    buffers: Buffers,
-    initial_agent_state_buffers,
+    buffers: Buffers
 ):
     try:
         logging.info("Actor %i started.", actor_index)
@@ -113,8 +114,10 @@ def act(
         gym_env.seed(seed)
         env = environment.Environment(gym_env, device=flags.actor_device)        
         env_output = env.initial()
-        agent_state = actor_model.initial_state(batch_size=1)
-        agent_output, unused_state = actor_model(env_output, agent_state)
+
+        env_output = { k: torch.flatten(val, 0, 1) for k, val in env_output.items()}
+        
+        agent_output = actor_model(env_output)
         while True:
             #env.gym_env.render()
             index = free_queue.get()
@@ -125,10 +128,7 @@ def act(
             for key in env_output:
                 buffers[key][index][0, ...] = env_output[key]
             for key in agent_output:
-                buffers[key][index][0, ...] = agent_output[key]
-            
-            for i, tensor in enumerate(agent_state):
-                initial_agent_state_buffers[index][i][...] = tensor
+                buffers[key][index][0, ...] = agent_output[key]        
 
             # Do new rollout.
             for t in range(flags.unroll_length):
@@ -168,7 +168,6 @@ def get_batch(
     free_queue: mp.SimpleQueue,
     full_queue: mp.SimpleQueue,
     buffers: Buffers,
-    initial_agent_state_buffers,
     timings,
     lock=threading.Lock(),
 ):
@@ -179,20 +178,13 @@ def get_batch(
     batch = {
         key: torch.stack([buffers[key][m] for m in indices], dim=1) for key in buffers
     }
-    initial_agent_state = (
-        torch.cat(ts, dim=1)
-        for ts in zip(*[initial_agent_state_buffers[m] for m in indices])
-    )
     timings.time("batch")
     for m in indices:
         free_queue.put(m)
     timings.time("enqueue")
     batch = {k: t.to(device=flags.device, non_blocking=True) for k, t in batch.items()}
-    initial_agent_state = tuple(
-        t.to(device=flags.device, non_blocking=True) for t in initial_agent_state
-    )
     timings.time("device")
-    return batch, initial_agent_state
+    return batch
 
 
 def learn(
@@ -201,7 +193,6 @@ def learn(
     leaner_model,
     teacher_model,
     batch,
-    initial_agent_state,
     optimizer,
     scheduler,
     lock=threading.Lock(),  # noqa: B008
@@ -209,12 +200,14 @@ def learn(
     """Performs a learning (optimization) step."""
     with lock:
 
-        learner_outputs, unused_state = leaner_model(batch, initial_agent_state)
+        batch = { k: torch.flatten(val, 0, 1) for k, val in batch.items()}
+
+        learner_outputs = leaner_model(batch)
 
 
         if flags.use_teacher:
             with torch.no_grad():
-                teacher_model_outputs, unused_state = teacher_model(batch, initial_agent_state)
+                teacher_model_outputs = teacher_model(batch)
                 teacher_model_outputs = {key: tensor[:-1] for key, tensor in teacher_model_outputs.items()}
         else:
             teacher_model_outputs = None
@@ -348,7 +341,7 @@ def create_buffers(flags, obs_shape, num_actions, info_len) -> Buffers:
         episode_step=dict(size=(T + 1, P,), dtype=torch.int32),
         policy_logits=dict(size=(T + 1, P, num_actions), dtype=torch.float32),
         baseline=dict(size=(T + 1, P,), dtype=torch.float32),
-        last_action=dict(size=(T + 1,), dtype=torch.int64),
+        #last_action=dict(size=(T + 1,), dtype=torch.int64),
         action=dict(size=(T + 1, P,), dtype=torch.int64),
         movement_reward=dict(size=(T + 1, P,), dtype=torch.float32),
         info=dict(size=(T + 1, P, info_len), dtype=torch.float32),
@@ -395,7 +388,7 @@ def train(flags):  # pylint: disable=too-many-branches, too-many-statements
     env = create_env(flags)
     _info_len = 23
 
-    actor_model = Net(env.observation_space.shape, env.action_space.n, _info_len, flags.use_lstm).to(flags.actor_device)
+    actor_model = Net(env.observation_space.shape, env.action_space.n, _info_len).to(flags.actor_device)
     buffers = create_buffers(flags, env.observation_space.shape, actor_model.num_actions, _info_len)
     
     n_trainable_params = sum(p.numel() for p in actor_model.parameters() if p.requires_grad)
@@ -403,14 +396,6 @@ def train(flags):  # pylint: disable=too-many-branches, too-many-statements
 
     #model.eval()
     actor_model.share_memory()
-
-    # Add initial RNN state.
-    initial_agent_state_buffers = []
-    for _ in range(flags.num_buffers):
-        state = actor_model.initial_state(batch_size=1)
-        for t in state:
-            t.share_memory_()
-        initial_agent_state_buffers.append(state)
 
     actor_processes = []
     #ctx = mp.get_context("fork")
@@ -427,8 +412,7 @@ def train(flags):  # pylint: disable=too-many-branches, too-many-statements
                 free_queue,
                 full_queue,
                 actor_model,
-                buffers,
-                initial_agent_state_buffers,
+                buffers
             ),
         )
         actor.start()
@@ -437,7 +421,7 @@ def train(flags):  # pylint: disable=too-many-branches, too-many-statements
     # Load teacher model for KL loss
     if flags.use_teacher:
         _teacher_model_path = flags.teacher_model_path
-        teacher_model = Net(env.observation_space.shape, env.action_space.n, _info_len, flags.use_lstm).to(device=flags.device)
+        teacher_model = Net(env.observation_space.shape, env.action_space.n, _info_len).to(device=flags.device)
         teacher_model.load_state_dict(
             torch.load(
                 _teacher_model_path,
@@ -449,9 +433,9 @@ def train(flags):  # pylint: disable=too-many-branches, too-many-statements
         teacher_model = None
         
     learner_model = Net(
-        env.observation_space.shape, env.action_space.n, _info_len, flags.use_lstm
+        env.observation_space.shape, env.action_space.n, _info_len
     ).to(device=flags.device)
-    #learner_model.train()
+
     learner_model.share_memory()
 
     optimizer = torch.optim.RMSprop(
@@ -493,7 +477,6 @@ def train(flags):  # pylint: disable=too-many-branches, too-many-statements
                 free_queue,
                 full_queue,
                 buffers,
-                initial_agent_state_buffers,
                 timings,
             )
             stats = learn(
@@ -581,10 +564,13 @@ def train(flags):  # pylint: disable=too-many-branches, too-many-statements
 
 
 class AtariNet(nn.Module):
-    def __init__(self, observation_shape, num_actions, info_shape, use_lstm=False):
+    def __init__(self, observation_shape, action_space, info_shape, ):
         super(AtariNet, self).__init__()
         self.observation_shape = observation_shape
-        self.num_actions = num_actions
+
+        self.action_space = action_space
+        self.num_logit= calc_num_logits(action_space)
+        self.num_actions = calc_num_actions(action_space)
 
         # Feature extraction.
         self.conv1 = nn.Conv2d(
@@ -603,28 +589,15 @@ class AtariNet(nn.Module):
             nn.ReLU()
             )
 
-        # Fully connected layer.
-        self.fc = nn.Linear(9216+128, 512)
+        self.fc = nn.Linear(3840+128, 512)
 
         # FC output size + one-hot of last action + last reward.
-        core_output_size = self.fc.out_features + num_actions + 1
-
-        self.use_lstm = use_lstm
-        if use_lstm:
-            self.core = nn.LSTM(core_output_size, core_output_size, 2)
-
-        self.policy = nn.Linear(core_output_size, self.num_actions)
+        core_output_size = self.fc.out_features + 1
+       
+        self.policy = nn.Linear(core_output_size, self.num_logit)
         self.baseline = nn.Linear(core_output_size, 1)
 
-    def initial_state(self, batch_size):
-        if not self.use_lstm:
-            return tuple()
-        return tuple(
-            torch.zeros(self.core.num_layers, batch_size, self.core.hidden_size)
-            for _ in range(2)
-        )
-
-    def forward(self, inputs, core_state=()):
+    def forward(self, inputs):
         x = inputs["frame"]  # [T, B, C, H, W].
         T, B, *_ = x.shape
         x = torch.flatten(x, 0, 1)  # Merge time and batch.
@@ -635,52 +608,42 @@ class AtariNet(nn.Module):
         x = x.view(T * B, -1)
 
         _info_feature = self.info_fc(inputs["info"])
+
         _info_feature = _info_feature.view(T * B, -1)
 
+        #print(inputs["last_action"].view(T * B).shape)
         x = torch.cat([x, _info_feature], dim=-1)
 
         x = F.relu(self.fc(x))
 
-        one_hot_last_action = F.one_hot(
-            inputs["last_action"].view(T * B), self.num_actions
-        ).float()
-        #clipped_reward = torch.clamp(inputs["reward"], -1, 1).view(T * B, 1)
         clipped_reward = torch.clamp(inputs["reward"].float(), -1, 1).view(T * B, 1)
-        core_input = torch.cat([x, clipped_reward, one_hot_last_action], dim=-1)
 
-        if self.use_lstm:
-            core_input = core_input.view(T, B, -1)
-            core_output_list = []
-            notdone = (~inputs["done"]).float()
-            for input, nd in zip(core_input.unbind(), notdone.unbind()):
-                # Reset core state to zero whenever an episode ended.
-                # Make `done` broadcastable with (num_layers, B, hidden_size)
-                # states:
-                nd = nd.view(1, -1, 1)
-                core_state = tuple(nd * s for s in core_state)
-                output, core_state = self.core(input.unsqueeze(0), core_state)
-                core_output_list.append(output)
-            core_output = torch.flatten(torch.cat(core_output_list), 0, 1)
-        else:
-            core_output = core_input
-            core_state = tuple()
+        core_input = torch.cat([x, clipped_reward], dim=-1)
+        
+        core_output = core_input
 
         policy_logits = self.policy(core_output)
         baseline = self.baseline(core_output)
 
+        action_distribution = get_action_distribution(self.action_space, policy_logits)
+
         if self.training:
-            action = torch.multinomial(F.softmax(policy_logits, dim=1), num_samples=1)
+            #action = torch.multinomial(F.softmax(policy_logits, dim=1), num_samples=1)
+            action = action_distribution.sample()
+            #print(action_distribution.actions)
+            #_action = torch.argmax(action_distribution.probs, dim=1)
+            #print(_action)
         else:
             # Don't sample when testing.
             action = torch.argmax(policy_logits, dim=1)
 
-        policy_logits = policy_logits.view(T, B, self.num_actions)
+        policy_logits = policy_logits.view(T, B, self.num_logit)
         baseline = baseline.view(T, B)
-        action = action.view(T, B)
+
+        action = action.view(T, B, self.num_actions)
 
         return (
             dict(policy_logits=policy_logits, baseline=baseline, action=action),
-            core_state,
         )
 
 

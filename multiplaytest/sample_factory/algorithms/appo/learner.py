@@ -795,7 +795,7 @@ class LearnerWorker:
 
                     # current minibatch consisting of short trajectory segments with length == recurrence
                     mb = self._get_minibatch(gpu_buffer, indices)
-
+                    #print("------------- mb['obs'] --------------", mb['obs']['obs'].shape)
                 # calculate policy head outside of recurrent loop
                 with timing.add_time('forward_head'):
                     head_outputs = self.actor_critic.forward_head(mb.obs)

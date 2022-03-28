@@ -21,6 +21,7 @@ def _format_frame(frame, device):
     return frame.view((1, 1) + frame.shape)  # (...) -> (T,B,...).
 
 P = 2
+#_num_action_ = 7
 class Environment:
     def __init__(self, gym_env, device):
         self.gym_env = gym_env
@@ -35,7 +36,7 @@ class Environment:
     def initial(self):
         initial_reward = torch.zeros(1, P, 1,  device=self.device)
         # This supports only single-tensor actions ATM.
-        initial_last_action = torch.zeros(1, P, 1, dtype=torch.int64, device=self.device)
+        #initial_last_action = torch.zeros(1, P, _num_action_, dtype=torch.int64, device=self.device)
         self.episode_return = torch.zeros(1, P, 1, device=self.device)
         self.episode_step = torch.zeros(1, P, 1, dtype=torch.int32, device=self.device)
         initial_done = torch.ones(1, P, 1, dtype=torch.uint8, device=self.device)
@@ -51,7 +52,7 @@ class Environment:
             done=initial_done,
             episode_return=self.episode_return,
             episode_step=self.episode_step,
-            last_action=initial_last_action,
+            #last_action=initial_last_action,
             info=game_info
         )
 
@@ -82,7 +83,7 @@ class Environment:
             done=done,
             episode_return=episode_return,
             episode_step=episode_step,
-            last_action=action.view((1, ) + action.shape),
+            #last_action=action.view((1, ) + action.shape),
             info=game_info.view((1, 1) + game_info.shape)
         )
     def reset(self):

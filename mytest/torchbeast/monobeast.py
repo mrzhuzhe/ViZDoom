@@ -133,6 +133,7 @@ def act(
                 timings.reset()
 
                 with torch.no_grad():
+                    #print(env_output['frame'].shape)
                     agent_output, agent_state = actor_model(env_output, agent_state)
 
                 timings.time("actor_model")
@@ -177,6 +178,7 @@ def get_batch(
     batch = {
         key: torch.stack([buffers[key][m] for m in indices], dim=1) for key in buffers
     }
+
     initial_agent_state = (
         torch.cat(ts, dim=1)
         for ts in zip(*[initial_agent_state_buffers[m] for m in indices])
@@ -206,7 +208,7 @@ def learn(
 ):
     """Performs a learning (optimization) step."""
     with lock:
-
+        print(batch['frame'].shape)
         learner_outputs, unused_state = leaner_model(batch, initial_agent_state)
 
 
@@ -492,6 +494,7 @@ def train(flags):  # pylint: disable=too-many-branches, too-many-statements
                 initial_agent_state_buffers,
                 timings,
             )
+            print("batch.shape", batch['frame'].shape)
             stats = learn(
                 flags, actor_model, learner_model, teacher_model, batch, agent_state, optimizer, scheduler
             )
