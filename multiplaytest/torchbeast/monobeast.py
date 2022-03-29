@@ -72,7 +72,7 @@ def compute_baseline_loss(advantages):
 #    return torch.sum(policy * log_policy)
 
 def compute_entropy_loss(entropy):
-    return torch.sum(entropy)
+    return -torch.sum(entropy)
 
 #def compute_policy_gradient_loss(logits, actions, advantages):
 #    cross_entropy = F.nll_loss(
@@ -207,6 +207,20 @@ def learn(
     lock=threading.Lock(),  # noqa: B008
 ):
     """Performs a learning (optimization) step."""
+
+    """
+    frame torch.Size([32, 16, 1, 100, 160])
+    reward torch.Size([32, 16])
+    done torch.Size([32, 16])
+    episode_return torch.Size([32, 16])
+    episode_step torch.Size([32, 16])
+    policy_logits torch.Size([32, 16, 8])
+    baseline torch.Size([32, 16])
+    last_action torch.Size([32, 16])
+    action torch.Size([32, 16])
+    movement_reward torch.Size([32, 16])
+    info torch.Size([32, 16, 2])
+    """
     with lock:
 
         learner_outputs = leaner_model(batch)

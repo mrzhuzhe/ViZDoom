@@ -121,6 +121,9 @@ def act(
 
             # Write old rollout end.
             for key in env_output:
+                #print(key)
+                #print("env_output[key]", env_output[key].shape)
+                #print("buffers[key][index][0, ...]", buffers[key][index][0, ...].shape)
                 buffers[key][index][0, ...] = env_output[key]
             for key in agent_output:
                 buffers[key][index][0, ...] = agent_output[key]
@@ -208,7 +211,7 @@ def learn(
 ):
     """Performs a learning (optimization) step."""
     with lock:
-        print(batch['frame'].shape)
+        #print(batch['frame'].shape)
         learner_outputs, unused_state = leaner_model(batch, initial_agent_state)
 
 
@@ -239,6 +242,9 @@ def learn(
 
         values = learner_outputs["baseline"]
 
+        for k in batch.keys():
+            print(k, batch[k].shape)
+            
         vtrace_returns = vtrace.from_logits(
             behavior_policy_logits=batch["policy_logits"],
             target_policy_logits=learner_outputs["policy_logits"],
@@ -494,7 +500,7 @@ def train(flags):  # pylint: disable=too-many-branches, too-many-statements
                 initial_agent_state_buffers,
                 timings,
             )
-            print("batch.shape", batch['frame'].shape)
+            #print("batch.shape", batch['frame'].shape)
             stats = learn(
                 flags, actor_model, learner_model, teacher_model, batch, agent_state, optimizer, scheduler
             )

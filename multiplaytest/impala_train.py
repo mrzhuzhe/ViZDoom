@@ -32,8 +32,8 @@ class conf:
         self.disable_cuda = None
 
         #self.entropy_cost = 0.0006
-        self.entropy_cost = 0.01
-        self.baseline_cost = 0.5 # td lambda
+        self.entropy_cost = 0.001
+        self.baseline_cost = 1 # td lambda
                 
         self.upgo_cost = 0.1
         self.lmb = 0.8
