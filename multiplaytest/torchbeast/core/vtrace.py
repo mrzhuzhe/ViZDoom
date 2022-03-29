@@ -87,6 +87,38 @@ def from_logits(
         **vtrace_returns._asdict(),
     )
 
+def from_log_props(
+    behavior_policy_log_props,
+    target_policy_log_props,
+    discounts,
+    rewards,
+    values,
+    bootstrap_value,
+    clip_rho_threshold=1.0,
+    clip_pg_rho_threshold=1.0,
+):
+    """V-trace for softmax policies."""
+
+    target_action_log_probs = behavior_policy_log_props
+    behavior_action_log_probs = target_policy_log_props
+
+    log_rhos = target_action_log_probs - behavior_action_log_probs
+    vtrace_returns = from_importance_weights(
+        log_rhos=log_rhos,
+        discounts=discounts,
+        rewards=rewards,
+        values=values,
+        bootstrap_value=bootstrap_value,
+        clip_rho_threshold=clip_rho_threshold,
+        clip_pg_rho_threshold=clip_pg_rho_threshold,
+    )
+    return VTraceFromLogitsReturns(
+        log_rhos=log_rhos,
+        behavior_action_log_probs=behavior_action_log_probs,
+        target_action_log_probs=target_action_log_probs,
+        **vtrace_returns._asdict(),
+    )
+
 
 @torch.no_grad()
 def from_importance_weights(

@@ -7,7 +7,7 @@ from torch.distributions import Normal, Independent
 import torch.nn.functional as F
 
 from sample_factory.utils.utils import log
-
+from copy import copy
 
 def calc_num_actions(action_space):
     if isinstance(action_space, gym.spaces.Discrete):
@@ -52,6 +52,7 @@ def get_action_distribution(action_space, raw_logits):
     if isinstance(action_space, gym.spaces.Discrete):
         return CategoricalActionDistribution(raw_logits)
     elif isinstance(action_space, gym.spaces.Tuple):
+        #print("raw_logits-------------", raw_logits.shape)
         return TupleActionDistribution(action_space, logits_flat=raw_logits)
     elif isinstance(action_space, gym.spaces.Box):
         return ContinuousActionDistribution(params=raw_logits)
@@ -168,7 +169,10 @@ class TupleActionDistribution:
     """
     def __init__(self, action_space, logits_flat):
         self.logit_lengths = [calc_num_logits(s) for s in action_space.spaces]
+
+        #print("---------------------------", logits_flat.shape)
         self.split_logits = torch.split(logits_flat, self.logit_lengths, dim=1)
+
         assert len(self.split_logits) == len(action_space.spaces)
 
         self.distributions = []

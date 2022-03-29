@@ -65,20 +65,30 @@ def compute_baseline_loss(advantages):
     return 0.5 * torch.sum(advantages ** 2)
 
 
-def compute_entropy_loss(logits):
-    """Return the entropy loss, i.e., the negative entropy of the policy."""
-    policy = F.softmax(logits, dim=-1)
-    log_policy = F.log_softmax(logits, dim=-1)
-    return torch.sum(policy * log_policy)
+#def compute_entropy_loss(logits):
+#    """Return the entropy loss, i.e., the negative entropy of the policy."""
+#    policy = F.softmax(logits, dim=-1)
+#    log_policy = F.log_softmax(logits, dim=-1)
+#    return torch.sum(policy * log_policy)
+
+def compute_entropy_loss(entropy):
+    return torch.sum(entropy)
+
+#def compute_policy_gradient_loss(logits, actions, advantages):
+#    cross_entropy = F.nll_loss(
+#        F.log_softmax(torch.flatten(logits, 0, 1), dim=-1),
+#        target=torch.flatten(actions, 0, 1),
+#        reduction="none",
+#    )
+#    cross_entropy = cross_entropy.view_as(advantages)
+#    return torch.sum(cross_entropy * advantages.detach())
 
 
-def compute_policy_gradient_loss(logits, actions, advantages):
-    cross_entropy = F.nll_loss(
-        F.log_softmax(torch.flatten(logits, 0, 1), dim=-1),
-        target=torch.flatten(actions, 0, 1),
-        reduction="none",
-    )
-    cross_entropy = cross_entropy.view_as(advantages)
+def compute_policy_gradient_loss(
+        action_log_probs: torch.Tensor,
+        advantages: torch.Tensor
+) -> torch.Tensor:
+    cross_entropy = -action_log_probs.view_as(advantages)
     return torch.sum(cross_entropy * advantages.detach())
 
 def compute_teacher_kl_loss(
@@ -114,10 +124,9 @@ def act(
         gym_env.seed(seed)
         env = environment.Environment(gym_env, device=flags.actor_device)        
         env_output = env.initial()
-
-        env_output = { k: torch.flatten(val, 0, 1) for k, val in env_output.items()}
         
         agent_output = actor_model(env_output)
+
         while True:
             #env.gym_env.render()
             index = free_queue.get()
@@ -135,13 +144,13 @@ def act(
                 timings.reset()
 
                 with torch.no_grad():
-                    agent_output, agent_state = actor_model(env_output, agent_state)
+                    agent_output = actor_model(env_output)
 
                 timings.time("actor_model")
 
                 #print("env_output", env_output)
-                env_output = env.step(agent_output["action"])            
-
+                env_output = env.step(torch.flatten(agent_output["action"], 0, 2))            
+                
                 timings.time("step")
 
                 for key in env_output:
@@ -200,10 +209,7 @@ def learn(
     """Performs a learning (optimization) step."""
     with lock:
 
-        batch = { k: torch.flatten(val, 0, 1) for k, val in batch.items()}
-
         learner_outputs = leaner_model(batch)
-
 
         if flags.use_teacher:
             with torch.no_grad():
@@ -232,15 +238,26 @@ def learn(
 
         values = learner_outputs["baseline"]
 
-        vtrace_returns = vtrace.from_logits(
-            behavior_policy_logits=batch["policy_logits"],
-            target_policy_logits=learner_outputs["policy_logits"],
-            actions=batch["action"],
+
+        behavior_policy_action_distribution = get_action_distribution(leaner_model.action_space, torch.flatten(batch["policy_logits"], 0, 2))
+        target_policy_action_distribution = get_action_distribution(leaner_model.action_space, torch.flatten(learner_outputs["policy_logits"], 0, 2))
+
+        #print(behavior_policy_action_distribution.log_prob(torch.flatten(batch["action"], 0, 2)).shape, values.shape, clipped_rewards.shape, learner_outputs["baseline"].shape, bootstrap_value.shape)
+
+        behavior_policy_log_props=behavior_policy_action_distribution.log_prob(torch.flatten(batch["action"], 0, 2)).view(32, 16,2)
+        target_policy_log_props=target_policy_action_distribution.log_prob(torch.flatten(batch["action"], 0, 2)).view(32, 16,2)
+
+        vtrace_returns = vtrace.from_log_props(
+            behavior_policy_log_props=behavior_policy_log_props,
+            target_policy_log_props=target_policy_log_props,
+            #actions=batch["action"],
             discounts=discounts,
             rewards=clipped_rewards,
             values=values,
             bootstrap_value=bootstrap_value,
-        )
+        )  
+
+        #print("vtrace_returns.log_rhos", vtrace_returns.log_rhos.shape)
 
         if flags.use_teacher:
             teacher_kl_loss = flags.teacher_kl_cost * compute_teacher_kl_loss(
@@ -289,23 +306,29 @@ def learn(
 
 
 
+        #pg_loss = compute_policy_gradient_loss(
+        #    learner_outputs["policy_logits"],
+        #    batch["action"],
+        #    vtrace_returns.pg_advantages,
+        #)
+
         pg_loss = compute_policy_gradient_loss(
-            learner_outputs["policy_logits"],
-            batch["action"],
+            target_policy_log_props,
             vtrace_returns.pg_advantages,
         )
+        
         baseline_loss = flags.baseline_cost * compute_baseline_loss(
             _adv
         )
         entropy_loss = flags.entropy_cost * compute_entropy_loss(
-            learner_outputs["policy_logits"]
+            target_policy_action_distribution.entropy()
         )
 
         total_loss = pg_loss + baseline_loss + entropy_loss + upgo_pg_loss + teacher_kl_loss
         #print(batch["episode_return"], [batch["done"]])
         episode_returns = batch["episode_return"][batch["done"]]
-
-        movement_reward = batch["movement_reward"][batch["done"]]
+        #print('batch["episode_return"]', batch["episode_return"].shape, 'batch["done"]', batch["done"].shape )
+        #movement_reward = batch["movement_reward"][batch["done"]]
 
         stats = {
             "episode_returns": tuple(episode_returns.cpu().numpy()),
@@ -316,7 +339,7 @@ def learn(
             "baseline_loss": baseline_loss.item(),
             "entropy_loss": entropy_loss.item(),
             "teacher_kl_loss": teacher_kl_loss.item(),
-            "movement_reward_return": torch.mean(movement_reward).item()
+            #"movement_reward_return": torch.mean(movement_reward).item()
         }
 
         optimizer.zero_grad()
@@ -329,21 +352,21 @@ def learn(
         return stats
 
 
-def create_buffers(flags, obs_shape, num_actions, info_len) -> Buffers:
+def create_buffers(flags, obs_shape, num_logit, num_actions, info_len) -> Buffers:
     T = flags.unroll_length
     #N = 1 
     P = 2
     specs = dict(
         frame=dict(size=(T + 1, P, *obs_shape), dtype=torch.uint8),
-        reward=dict(size=(T + 1, P,), dtype=torch.float32),
-        done=dict(size=(T + 1, P,), dtype=torch.bool),
-        episode_return=dict(size=(T + 1, P,), dtype=torch.float32),
-        episode_step=dict(size=(T + 1, P,), dtype=torch.int32),
-        policy_logits=dict(size=(T + 1, P, num_actions), dtype=torch.float32),
-        baseline=dict(size=(T + 1, P,), dtype=torch.float32),
+        reward=dict(size=(T + 1, P), dtype=torch.float32),
+        done=dict(size=(T + 1, P), dtype=torch.bool),
+        episode_return=dict(size=(T + 1, P), dtype=torch.float32),
+        episode_step=dict(size=(T + 1, P), dtype=torch.int32),
+        policy_logits=dict(size=(T + 1, P, num_logit), dtype=torch.float32),
+        baseline=dict(size=(T + 1, P), dtype=torch.float32),
         #last_action=dict(size=(T + 1,), dtype=torch.int64),
-        action=dict(size=(T + 1, P,), dtype=torch.int64),
-        movement_reward=dict(size=(T + 1, P,), dtype=torch.float32),
+        action=dict(size=(T + 1, P, num_actions), dtype=torch.int64),
+        #movement_reward=dict(size=(T + 1, P, 1), dtype=torch.float32),
         info=dict(size=(T + 1, P, info_len), dtype=torch.float32),
     )
     buffers: Buffers = {key: [] for key in specs}
@@ -388,8 +411,8 @@ def train(flags):  # pylint: disable=too-many-branches, too-many-statements
     env = create_env(flags)
     _info_len = 23
 
-    actor_model = Net(env.observation_space.shape, env.action_space.n, _info_len).to(flags.actor_device)
-    buffers = create_buffers(flags, env.observation_space.shape, actor_model.num_actions, _info_len)
+    actor_model = Net(env.observation_space['obs'].shape, env.action_space, _info_len).to(flags.actor_device)
+    buffers = create_buffers(flags, env.observation_space['obs'].shape, actor_model.num_logit, actor_model.num_actions, _info_len)
     
     n_trainable_params = sum(p.numel() for p in actor_model.parameters() if p.requires_grad)
     logging.info(f'Training model with {n_trainable_params:,d} parameters.')
@@ -421,7 +444,7 @@ def train(flags):  # pylint: disable=too-many-branches, too-many-statements
     # Load teacher model for KL loss
     if flags.use_teacher:
         _teacher_model_path = flags.teacher_model_path
-        teacher_model = Net(env.observation_space.shape, env.action_space.n, _info_len).to(device=flags.device)
+        teacher_model = Net(env.observation_space['obs'].shape, env.action_space, _info_len).to(device=flags.device)
         teacher_model.load_state_dict(
             torch.load(
                 _teacher_model_path,
@@ -433,7 +456,7 @@ def train(flags):  # pylint: disable=too-many-branches, too-many-statements
         teacher_model = None
         
     learner_model = Net(
-        env.observation_space.shape, env.action_space.n, _info_len
+        env.observation_space['obs'].shape, env.action_space, _info_len
     ).to(device=flags.device)
 
     learner_model.share_memory()
@@ -460,7 +483,7 @@ def train(flags):  # pylint: disable=too-many-branches, too-many-statements
         "entropy_loss",
         "upgo_pg_loss",
         "teacher_kl_loss",
-        "movement_reward_return"
+        #"movement_reward_return"
     ]
     logger.info("# Step\t%s", "\t".join(stat_keys))
 
@@ -472,7 +495,7 @@ def train(flags):  # pylint: disable=too-many-branches, too-many-statements
         timings = prof.Timings()
         while step < flags.total_steps:
             timings.reset()
-            batch, agent_state = get_batch(
+            batch = get_batch(
                 flags,
                 free_queue,
                 full_queue,
@@ -480,7 +503,7 @@ def train(flags):  # pylint: disable=too-many-branches, too-many-statements
                 timings,
             )
             stats = learn(
-                flags, actor_model, learner_model, teacher_model, batch, agent_state, optimizer, scheduler
+                flags, actor_model, learner_model, teacher_model, batch, optimizer, scheduler
             )
             timings.time("learn")
             with lock:
@@ -561,8 +584,6 @@ def train(flags):  # pylint: disable=too-many-branches, too-many-statements
     plogger.close()
 
 
-
-
 class AtariNet(nn.Module):
     def __init__(self, observation_shape, action_space, info_shape, ):
         super(AtariNet, self).__init__()
@@ -598,25 +619,27 @@ class AtariNet(nn.Module):
         self.baseline = nn.Linear(core_output_size, 1)
 
     def forward(self, inputs):
-        x = inputs["frame"]  # [T, B, C, H, W].
-        T, B, *_ = x.shape
-        x = torch.flatten(x, 0, 1)  # Merge time and batch.
+        x = inputs["frame"]  # [T, B, P, C, H, W].
+        T, B, P, *_ = x.shape
+
+        _allView_ = T * B * P
+        
+        x = torch.flatten(x, 0, 2)  # Merge time and batch and oppotent.       
         x = x.float() / 255.0
         x = F.relu(self.conv1(x))
         x = F.relu(self.conv2(x))
         x = F.relu(self.conv3(x))
-        x = x.view(T * B, -1)
+        x = x.view(_allView_, -1)
 
         _info_feature = self.info_fc(inputs["info"])
-
-        _info_feature = _info_feature.view(T * B, -1)
-
-        #print(inputs["last_action"].view(T * B).shape)
+        
+        _info_feature = _info_feature.view(_allView_, -1)
+        
         x = torch.cat([x, _info_feature], dim=-1)
 
         x = F.relu(self.fc(x))
 
-        clipped_reward = torch.clamp(inputs["reward"].float(), -1, 1).view(T * B, 1)
+        clipped_reward = torch.clamp(inputs["reward"].float(), -1, 1).view(_allView_, 1)
 
         core_input = torch.cat([x, clipped_reward], dim=-1)
         
@@ -628,24 +651,23 @@ class AtariNet(nn.Module):
         action_distribution = get_action_distribution(self.action_space, policy_logits)
 
         if self.training:
-            #action = torch.multinomial(F.softmax(policy_logits, dim=1), num_samples=1)
-            action = action_distribution.sample()
+            #action = torch.multinomial(F.softmax(policy_logits, dim=1), num_samples=1)           
             #print(action_distribution.actions)
-            #_action = torch.argmax(action_distribution.probs, dim=1)
-            #print(_action)
+            #action, log_probs = 
+            action = action_distribution.sample()
+            #print("action.shape", action.shape)
+            #print("log_probs.shape", log_probs.shape)
         else:
             # Don't sample when testing.
             action = torch.argmax(policy_logits, dim=1)
 
-        policy_logits = policy_logits.view(T, B, self.num_logit)
-        baseline = baseline.view(T, B)
+        policy_logits = policy_logits.view(T, B, P, self.num_logit)
+        baseline = baseline.view(T, B, P)
 
-        action = action.view(T, B, self.num_actions)
+        action = action.view(T, B, P, self.num_actions)
 
-        return (
-            dict(policy_logits=policy_logits, baseline=baseline, action=action),
-        )
-
+        return dict(policy_logits=policy_logits, baseline=baseline, action=action)
+        
 
 Net = AtariNet
 

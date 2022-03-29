@@ -34,12 +34,12 @@ class Environment:
         self.gym_env.render()
 
     def initial(self):
-        initial_reward = torch.zeros(1, P, 1,  device=self.device)
+        initial_reward = torch.zeros(1, 1,  P,  device=self.device)
         # This supports only single-tensor actions ATM.
         #initial_last_action = torch.zeros(1, P, _num_action_, dtype=torch.int64, device=self.device)
-        self.episode_return = torch.zeros(1, P, 1, device=self.device)
-        self.episode_step = torch.zeros(1, P, 1, dtype=torch.int32, device=self.device)
-        initial_done = torch.ones(1, P, 1, dtype=torch.uint8, device=self.device)
+        self.episode_return = torch.zeros(1, 1, P, device=self.device)
+        self.episode_step = torch.zeros(1, 1, P, dtype=torch.int32, device=self.device)
+        initial_done = torch.ones(1, 1, P, dtype=torch.uint8, device=self.device)
         
         obs = self.gym_env.reset()
         initial_frame = _format_frame(np.array([obs[i]['obs'] for i in range(P)]), self.device)
@@ -63,14 +63,14 @@ class Environment:
 
         if all(done):
             obs = self.gym_env.reset()
-            self.episode_return = torch.zeros(1, P, 1, device=self.device)
-            self.episode_step = torch.zeros(1, P, 1, dtype=torch.int32, device=self.device)
+            self.episode_return = torch.zeros(1, 1, P, device=self.device)
+            self.episode_step = torch.zeros(1, 1, P, dtype=torch.int32, device=self.device)
         
         # maybe need a faster way to 
         frame = _format_frame(np.array([obs[i]['obs'] for i in range(P)]), device=self.device)
 
-        reward = torch.tensor(reward, device=self.device).view(1, P, 1)
-        done = torch.tensor(done, device=self.device).view(1, P, 1)
+        reward = torch.tensor(reward, device=self.device).view(1, 1, P)
+        done = torch.tensor(done, device=self.device).view(1, 1, P)
 
         self.episode_return += reward
         episode_return = self.episode_return
