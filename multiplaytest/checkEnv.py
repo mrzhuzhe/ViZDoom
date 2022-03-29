@@ -26,9 +26,11 @@ env_output = multi_env.initial()
 #obs = multi_env.reset()
 visualize = True
 P = 2
-print(multi_env.action_space.nvec)
 
-
+"""
+------------------ [False, False]
+done tensor([[[False, False]]])
+episode_return tensor([[[1.1349, 1.2423]]])
 """
 
 for i in range(num_steps):
@@ -46,19 +48,18 @@ for i in range(num_steps):
     
     # print(infos) 49 info 
     #print(rew) # already has reward shaping 
-    #print(dones)
+    print(dones)
 
-    for key in env_output:
+    #for key in env_output:
     #    print(key, env_output[key].shape)
-        if key == "episode_return":
-            print(key, env_output[key])
+    #    if key == "episode_return":
+    #        print(key, env_output[key])
     
     #if all(dones[0]):
     #    multi_env.reset()
 
 multi_env.close()
 
-"""
 
 
 

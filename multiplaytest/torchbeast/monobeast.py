@@ -341,7 +341,8 @@ def learn(
         total_loss = pg_loss + baseline_loss + entropy_loss + upgo_pg_loss + teacher_kl_loss
         #print(batch["episode_return"], [batch["done"]])
         episode_returns = batch["episode_return"][batch["done"]]
-        #print('batch["episode_return"]', batch["episode_return"].shape, 'batch["done"]', batch["done"].shape )
+        print('batch["episode_return"]', batch["episode_return"], 'batch["done"]', batch["done"] )
+        #print('episode_returns', episode_returns.shape)
         #movement_reward = batch["movement_reward"][batch["done"]]
 
         stats = {
@@ -663,7 +664,6 @@ class AtariNet(nn.Module):
         baseline = self.baseline(core_output)
 
         action_distribution = get_action_distribution(self.action_space, policy_logits)
-
         if self.training:
             #action = torch.multinomial(F.softmax(policy_logits, dim=1), num_samples=1)           
             #print(action_distribution.actions)
@@ -673,7 +673,8 @@ class AtariNet(nn.Module):
             #print("log_probs.shape", log_probs.shape)
         else:
             # Don't sample when testing.
-            action = torch.argmax(policy_logits, dim=1)
+            #action = torch.argmax(policy_logits, dim=1)
+            action = action_distribution.act()
 
         policy_logits = policy_logits.view(T, B, P, self.num_logit)
         baseline = baseline.view(T, B, P)

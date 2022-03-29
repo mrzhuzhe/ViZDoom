@@ -95,6 +95,11 @@ class CategoricalActionDistribution:
     def sample_gumbel(self):
         sample = torch.argmax(self.raw_logits - torch.empty_like(self.raw_logits).exponential_().log_(), -1)
         return sample
+    
+    def act(self):
+        #print(self.probs)
+        #print(torch.argmax(self.probs, dim=1))
+        return torch.argmax(self.probs, dim=1)
 
     def sample(self):
         samples = torch.multinomial(self.probs, 1, True).squeeze(dim=-1)
@@ -204,6 +209,11 @@ class TupleActionDistribution:
 
     def sample(self):
         list_of_action_batches = [d.sample() for d in self.distributions]
+        return self._flatten_actions(list_of_action_batches)
+    
+    def act(self):
+        list_of_action_batches = [d.act() for d in self.distributions]
+        #print(list_of_action_batches)
         return self._flatten_actions(list_of_action_batches)
 
     def log_prob(self, actions):

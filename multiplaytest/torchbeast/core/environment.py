@@ -61,7 +61,9 @@ class Environment:
         self.episode_step += 1
         episode_step = self.episode_step
 
+        #print("------------------", done)
         if all(done):
+            #print("------------------", done)
             obs = self.gym_env.reset()
             self.episode_return = torch.zeros(1, 1, P, device=self.device)
             self.episode_step = torch.zeros(1, 1, P, dtype=torch.int32, device=self.device)
