@@ -126,3 +126,5 @@ __pycache__
 
 mytest/torch-beast-results
 mytest/runs
+train_dir
+multiplaytest/runs
