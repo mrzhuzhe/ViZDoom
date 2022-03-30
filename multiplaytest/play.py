@@ -34,8 +34,8 @@ P = 2
 
 
 #_model_path_ = '/mnt/e28833eb-0c99-4fe2-802a-09fa58d9c9f5/code/ViZDoom/multiplaytest/runs/multi_player/test/model.tar'
-_model_path_ = '/mnt/e28833eb-0c99-4fe2-802a-09fa58d9c9f5/code/ViZDoom/multiplaytest/runs/multi_player/test2/model.tar'
-
+#_model_path_ = '/mnt/e28833eb-0c99-4fe2-802a-09fa58d9c9f5/code/ViZDoom/multiplaytest/runs/multi_player/test2/model.tar'
+_model_path_ = '/mnt/e28833eb-0c99-4fe2-802a-09fa58d9c9f5/code/ViZDoom/multiplaytest/runs/multi_player/torchbeast-20220330-173816/model.tar'
 actor_model.load_state_dict(torch.load(
                 _model_path_,
                 map_location=torch.device("cpu")
@@ -58,25 +58,26 @@ for i in range(num_steps):
     
     
     agent_output1 = actor_model({ k: torch.index_select(v, 2, torch.tensor([0])) for k,v in env_output.items()})
-    #agent_output2 = actor_model({ k: torch.index_select(v, 2, torch.tensor([1])) for k,v in env_output.items()})
+    agent_output2 = actor_model({ k: torch.index_select(v, 2, torch.tensor([1])) for k,v in env_output.items()})
     #print(agent_output1["action"])
-    agent_output2 = torch.tensor([[[[ 0,  0,  0,  0,  0,  0, 10]]]])
 
-    env_output = multi_env.step(torch.flatten(torch.concat([agent_output1["action"], agent_output2], dim=2), 0, 2))
+    #agent_output2 = torch.tensor([[[[ 0,  0,  0,  0,  0,  0, 10]]]])
+
+    env_output = multi_env.step(torch.flatten(torch.concat([agent_output1["action"], agent_output2["action"]], dim=2), 0, 2))
     
-    
-    #env_output = multi_env.step(actions)
-    
-    obs = env_output["frame"]
-    dones = env_output["done"]
+    #actions1 = multi_env.gym_env.action_space.sample()
+    #actions2 = multi_env.gym_env.action_space.sample()
+    #env_output = multi_env.step([actions1, actions2])
+    #obs = env_output["frame"]
+    #dones = env_output["done"]
     if visualize:
         multi_env.render()
     #sleep(0.04)
 
     #print(dones)
-    #for key in env_output:
-    #    if key == "episode_return" or key == "done":
-    #        print(key, env_output[key])
+    for key in env_output:
+        if key == "episode_return" or key == "done":
+            print(key, env_output[key])
     
     #if all(dones[0]):
     #    sleep(5)

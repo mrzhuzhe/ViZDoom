@@ -5,7 +5,7 @@ class conf:
     def __init__(self):
         #self.env =  "PongNoFrameskip-v4"
         #self.env =  "BoxingNoFrameskip-v0"
-
+        self.checkPoint = '/mnt/e28833eb-0c99-4fe2-802a-09fa58d9c9f5/code/ViZDoom/multiplaytest/runs/multi_player/test2/model.tar'
         self.savedir = "./runs/multi_player"
         #self.xpid =  "torchbeast-train_test"
         self.xpid = None

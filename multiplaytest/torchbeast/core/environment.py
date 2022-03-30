@@ -61,6 +61,10 @@ class Environment:
         self.episode_step += 1
         episode_step = self.episode_step
 
+        reward = torch.tensor(reward, device=self.device).view(1, 1, P)
+        self.episode_return += reward
+        episode_return = self.episode_return
+
         #print("------------------", done)
         if all(done):
             #print("------------------", done)
@@ -68,15 +72,9 @@ class Environment:
             self.episode_return = torch.zeros(1, 1, P, device=self.device)
             self.episode_step = torch.zeros(1, 1, P, dtype=torch.int32, device=self.device)
         
-        # maybe need a faster way to 
-        frame = _format_frame(np.array([obs[i]['obs'] for i in range(P)]), device=self.device)
-
-        reward = torch.tensor(reward, device=self.device).view(1, 1, P)
+        # maybe need a faster way to
         done = torch.tensor(done, device=self.device).view(1, 1, P)
-
-        self.episode_return += reward
-        episode_return = self.episode_return
-        
+        frame = _format_frame(np.array([obs[i]['obs'] for i in range(P)]), device=self.device)       
         game_info = torch.from_numpy(np.array([obs[i]['measurements'] for i in range(P)])).to(self.device)
     
         return dict(

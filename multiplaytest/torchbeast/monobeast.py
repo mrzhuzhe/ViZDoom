@@ -427,6 +427,13 @@ def train(flags):  # pylint: disable=too-many-branches, too-many-statements
     _info_len = 23
 
     actor_model = Net(env.observation_space['obs'].shape, env.action_space, _info_len).to(flags.actor_device)
+    
+    if flags.checkPoint:
+        actor_model.load_state_dict(torch.load(
+                flags.checkPoint,
+                map_location=torch.device("cpu")
+            )["model_state_dict"])
+
     buffers = create_buffers(flags, env.observation_space['obs'].shape, actor_model.num_logit, actor_model.num_actions, _info_len)
     
     n_trainable_params = sum(p.numel() for p in actor_model.parameters() if p.requires_grad)
@@ -473,6 +480,13 @@ def train(flags):  # pylint: disable=too-many-branches, too-many-statements
     learner_model = Net(
         env.observation_space['obs'].shape, env.action_space, _info_len
     ).to(device=flags.device)
+
+    if flags.checkPoint:
+        learner_model.load_state_dict(torch.load(
+                flags.checkPoint,
+                map_location=torch.device("cpu")
+            )["model_state_dict"])
+
 
     learner_model.share_memory()
 
@@ -694,8 +708,6 @@ def make_standard_dm(env_config):
     return env
 
 def create_env(flags, worker_index = 0):
-
     env_config = AttrDict({'worker_index': worker_index, 'vector_index': 0, 'safe_init': False})
     multi_env = make_standard_dm(env_config)
-
     return multi_env
