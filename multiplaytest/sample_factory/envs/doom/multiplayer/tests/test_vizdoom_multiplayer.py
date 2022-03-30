@@ -3,6 +3,8 @@ import unittest
 from multiprocessing import Process
 from unittest import TestCase
 
+import torch
+
 from sample_factory.envs.env_utils import vizdoom_available
 from sample_factory.utils.utils import log, AttrDict
 import logging
@@ -46,6 +48,8 @@ class TestDoom(TestCase):
 
         for i in range(num_steps):
             actions = [multi_env.action_space.sample()] * len(obs)
+            #actions = torch.zeros(2, 7)
+            #actions = torch.tensor([[ 0,  0,  0,  0,  0,  0, 10], [ 0,  0,  0,  0,  0,  0, 10]])
             obs, rew, dones, infos = multi_env.step(actions)
             if visualize:
                 multi_env.render()

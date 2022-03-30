@@ -213,6 +213,11 @@ class VizdoomEnvMultiplayer(VizdoomEnv):
             if self.game.get_episode_time() + 1 == self.game.get_episode_timeout():
                 log.debug('Calling stop recording command!')
                 self.game.send_game_command('stop')
+        
+
+        if done:
+            log.info("------------------------")
+            log.info(done)
 
         observation, done, info = self._process_game_step(state, done, {})
         return observation, reward, done, info
