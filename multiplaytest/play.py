@@ -33,7 +33,8 @@ visualize = True
 P = 2
 
 
-_model_path_ = '/mnt/e28833eb-0c99-4fe2-802a-09fa58d9c9f5/code/ViZDoom/multiplaytest/runs/multi_player/test/model.tar'
+#_model_path_ = '/mnt/e28833eb-0c99-4fe2-802a-09fa58d9c9f5/code/ViZDoom/multiplaytest/runs/multi_player/test/model.tar'
+_model_path_ = '/mnt/e28833eb-0c99-4fe2-802a-09fa58d9c9f5/code/ViZDoom/multiplaytest/runs/multi_player/torchbeast-20220329-220821/model.tar'
 
 actor_model.load_state_dict(torch.load(
                 _model_path_,
@@ -63,18 +64,19 @@ for i in range(num_steps):
     
     #env_output = multi_env.step(actions)
     
-    #obs = env_output["frame"]
-    #dones = env_output["done"]
+    obs = env_output["frame"]
+    dones = env_output["done"]
     if visualize:
         multi_env.render()
-    sleep(0.02)
+    sleep(0.04)
 
     #print(dones)
     for key in env_output:
-        if key == "episode_return" or key == "done":
+        if key == "episode_return": #or key == "done":
             print(key, env_output[key])
     
     #if all(dones[0]):
+    #    sleep(5)
     #    multi_env.reset()
 
 multi_env.close() 

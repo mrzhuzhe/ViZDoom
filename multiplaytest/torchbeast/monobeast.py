@@ -341,7 +341,7 @@ def learn(
         total_loss = pg_loss + baseline_loss + entropy_loss + upgo_pg_loss + teacher_kl_loss
         #print(batch["episode_return"], [batch["done"]])
         episode_returns = batch["episode_return"][batch["done"]]
-        print('batch["episode_return"]', batch["episode_return"], 'batch["done"]', batch["done"] )
+        #print('batch["episode_return"]', batch["episode_return"], 'batch["done"]', batch["done"] )
         #print('episode_returns', episode_returns.shape)
         #movement_reward = batch["movement_reward"][batch["done"]]
 
