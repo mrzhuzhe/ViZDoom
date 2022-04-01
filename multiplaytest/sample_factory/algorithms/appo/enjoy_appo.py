@@ -49,6 +49,8 @@ def enjoy(cfg, max_num_frames=1e9):
     actor_critic.model_to_device(device)
 
     policy_id = cfg.policy_index
+    #policy_id = 1
+    #print("------------------", policy_id, LearnerWorker.checkpoint_dir(cfg, policy_id))
     checkpoints = LearnerWorker.get_checkpoints(LearnerWorker.checkpoint_dir(cfg, policy_id))
     checkpoint_dict = LearnerWorker.load_checkpoint(checkpoints, device)
     actor_critic.load_state_dict(checkpoint_dict['model'])
