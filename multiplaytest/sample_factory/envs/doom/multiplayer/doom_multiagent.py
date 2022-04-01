@@ -215,9 +215,9 @@ class VizdoomEnvMultiplayer(VizdoomEnv):
                 self.game.send_game_command('stop')
         
 
-        if done:
-            log.info("------------------------")
-            log.info(done)
+        #if done:
+        #    log.info("------------------------")
+        #    log.info(done)
 
         observation, done, info = self._process_game_step(state, done, {})
         return observation, reward, done, info
